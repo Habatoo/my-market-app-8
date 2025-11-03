@@ -1,0 +1,17 @@
+app:
+  upload:
+    dir: ${user.dir}/uploads/posts/
+    auto-create-dir: true
+  image:
+    default-extension: jpg
+
+spring:
+  profiles:
+    active: dev
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/db}
+    username: ${SPRING_DATASOURCE_USERNAME:admin}
+    password: ${SPRING_DATASOURCE_PASSWORD:password}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 30000

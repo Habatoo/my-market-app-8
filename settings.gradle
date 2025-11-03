@@ -1,0 +1,6 @@
+rootProject.name = 'my-market-app-5'
+
+include 'api'
+include 'core'
+include 'start'
+include 'bom'
