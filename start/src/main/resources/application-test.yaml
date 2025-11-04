@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/shop_db
+    username: shop_admin
+    password: shop_password
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 30000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+liquibase:
+  enabled: true
+  driver-class-name: org.postgresql.Driver
+  url: jdbc:postgresql://localhost:5432/shop_db
+  username: shop_admin
+  password: shop_password
+  context: test

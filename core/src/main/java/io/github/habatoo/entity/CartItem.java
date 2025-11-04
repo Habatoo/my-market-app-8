@@ -20,17 +20,17 @@ public class CartItem {
 
     /** Корзина, к которой принадлежит данная позиция. */
     @ManyToOne(optional = false)
-    @JoinColumn(name = "cart_id")
+    @JoinColumn(name = "cart_id", nullable = false)
     private Cart cart;
 
     /** Товар в корзине. */
     @ManyToOne(optional = false)
-    @JoinColumn(name = "item_id")
+    @JoinColumn(name = "item_id", nullable = false)
     private Item item;
 
     /** Количество товара в позиции корзины. */
     @Column(nullable = false)
-    private Integer count = 1;
+    private Integer count;
 
     /** Цена товара на момент добавления в корзину. */
     @Column(nullable = false)

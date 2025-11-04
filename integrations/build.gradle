@@ -1,18 +1,5 @@
 plugins {
     id 'java'
-    id 'jacoco'
-    id 'java-library'
-    id 'io.spring.dependency-management' version '1.1.7'
-}
-
-jacoco {
-    toolVersion = '0.8.11'
-}
-
-dependencyManagement {
-    imports {
-        mavenBom 'org.springframework.boot:spring-boot-dependencies:3.5.7'
-    }
 }
 
 repositories {
@@ -22,10 +9,11 @@ repositories {
 
 dependencies {
     implementation platform(project(':bom'))
+    implementation platform('org.springframework.boot:spring-boot-dependencies:3.5.6')
 
-    api 'org.springframework.boot:spring-boot-autoconfigure'
-    implementation 'org.springframework.boot:spring-boot-starter'
-    annotationProcessor 'org.springframework.boot:spring-boot-autoconfigure-processor'
+    implementation project(':core')
+    implementation project(':api')
+    implementation project(':start')
 
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.hibernate.orm:hibernate-core'
@@ -48,12 +36,28 @@ dependencies {
 }
 
 jar {
-    enabled = true
+    enabled = false
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.compilerArgs.add('-parameters')
+}
+
+tasks.register('integrationTest', Test) {
+    description = 'Runs integration tests.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    shouldRunAfter(tasks.test)
+    useJUnitPlatform()
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+    }
+}
+
+tasks.check {
+    dependsOn tasks.named('integrationTest')
 }
 
 test {

@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${SPRING_DATASOURCE_HOST:localhost}:${SPRING_DATASOURCE_DB_PORT:5432}/${SPRING_DATASOURCE_DB_NAME:shop_db}}
+    username: ${SPRING_DATASOURCE_DB_USERNAME:shop_admin}
+    password: ${SPRING_DATASOURCE_DB_PASSWORD:shop_password}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 30000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+liquibase:
+  enabled: true
+  driver-class-name: org.postgresql.Driver
+  url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${SPRING_DATASOURCE_HOST:localhost}:${SPRING_DATASOURCE_DB_PORT:5432}/${SPRING_DATASOURCE_DB_NAME:shop_db}}
+  username: ${SPRING_DATASOURCE_DB_USERNAME:shop_admin}
+  password: ${SPRING_DATASOURCE_DB_PASSWORD:shop_password}
+  context: dev
