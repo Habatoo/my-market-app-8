@@ -32,22 +32,4 @@ public class Cart {
      */
     @Column(nullable = false)
     private BigDecimal total = BigDecimal.ZERO;
-
-    /**
-     * Добавляет элемент в корзину с синхронизацией связей.
-     * @param cartItem позиция корзины
-     */
-    public void addItem(CartItem cartItem) {
-        items.add(cartItem);
-        cartItem.setCart(this);
-    }
-
-    /**
-     * Удаляет элемент из корзины с синхронизацией связей.
-     * @param cartItem позиция корзины
-     */
-    public void removeItem(CartItem cartItem) {
-        items.remove(cartItem);
-        cartItem.setCart(null);
-    }
 }

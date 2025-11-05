@@ -19,12 +19,12 @@ public class OrderItem {
     private Long id;
 
     /** Товар, добавленный в заказ. */
-    @ManyToOne
+    @ManyToOne(optional = false)
     @JoinColumn(name = "item_id")
     private Item item;
 
     /** Заказ, к которому относится данная позиция. */
-    @ManyToOne
+    @ManyToOne(optional = false)
     @JoinColumn(name = "order_id")
     private Order order;
 

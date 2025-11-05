@@ -1,4 +1,4 @@
-package io.github.habatoo.repository;
+package io.github.habatoo.repositories;
 
 import io.github.habatoo.entity.Item;
 import org.junit.jupiter.api.DisplayName;
