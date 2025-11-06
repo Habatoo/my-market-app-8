@@ -13,7 +13,7 @@ import org.springframework.test.context.ActiveProfiles;
         classes = io.github.habatoo.Application.class
 )
 @DisplayName("Проверка загрузки контекста приложения")
-class ApplicationBootTest {
+class ApplicationTest {
 
     /**
      * Основной smoke-тест: приложение успешно стартует, если тест не падает с ошибкой конфигурации.
