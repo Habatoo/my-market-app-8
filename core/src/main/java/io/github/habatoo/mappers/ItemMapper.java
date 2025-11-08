@@ -12,11 +12,6 @@ import java.util.List;
 public interface ItemMapper {
     List<ItemDto> toDto(List<Item> entities);
 
-    @Mapping(target = "id", source = "id")
-    @Mapping(target = "title", source = "title")
-    @Mapping(target = "description", source = "description")
-    @Mapping(target = "imgPath", source = "imgPath")
-    @Mapping(target = "price", source = "price")
-    @Mapping(target = "count", source = "count")
+    @Mapping(target = "count", constant = "0")
     ItemDto toDto(Item entity);
 }

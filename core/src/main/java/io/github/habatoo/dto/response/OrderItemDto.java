@@ -1,5 +1,7 @@
 package io.github.habatoo.dto.response;
 
+import lombok.Builder;
+
 import java.math.BigDecimal;
 
 /**
@@ -11,6 +13,7 @@ import java.math.BigDecimal;
  * @param price Цена товара на момент оформления заказа
  * @param total Общая цена товара на момент оформления заказа
  */
+@Builder
 public record OrderItemDto(
         ItemDto item,
         OrderDto order,

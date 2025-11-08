@@ -1,9 +1,11 @@
 package io.github.habatoo.servicies.impl;
 
-import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.dto.response.OrderDto;
-import io.github.habatoo.dto.response.OrderItemDto;
-import io.github.habatoo.entity.*;
+import io.github.habatoo.entity.Cart;
+import io.github.habatoo.entity.CartItem;
+import io.github.habatoo.entity.Order;
+import io.github.habatoo.entity.OrderItem;
+import io.github.habatoo.mappers.OrderMapper;
 import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.CartRepository;
 import io.github.habatoo.repositories.OrderItemRepository;
@@ -29,15 +31,18 @@ public class OrderServiceImpl implements OrderService {
     private final OrderItemRepository orderItemRepository;
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
+    private final OrderMapper mapper;
 
     public OrderServiceImpl(OrderRepository orderRepository,
                             OrderItemRepository orderItemRepository,
                             CartRepository cartRepository,
-                            CartItemRepository cartItemRepository) {
+                            CartItemRepository cartItemRepository,
+                            OrderMapper mapper) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.cartRepository = cartRepository;
         this.cartItemRepository = cartItemRepository;
+        this.mapper = mapper;
     }
 
     /**
@@ -48,7 +53,7 @@ public class OrderServiceImpl implements OrderService {
     public List<OrderDto> getOrders() {
         List<Order> orders = orderRepository.findAll();
         return orders.stream()
-                .map(this::toDto)
+                .map(mapper::toDto)
                 .collect(Collectors.toList());
     }
 
@@ -59,7 +64,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public OrderDto getOrder(Long id, boolean newOrder) {
         Order order = orderRepository.findById(id).orElse(null);
-        return order != null ? toDto(order) : null;
+        return order != null ? mapper.toDto(order) : null;
     }
 
     /**
@@ -93,57 +98,12 @@ public class OrderServiceImpl implements OrderService {
         order.setItems(orderItems);
         order.setTotalSum(totalSum);
 
-        // Сохраняем заказ с позициями
         orderRepository.save(order);
         orderItems.forEach(orderItemRepository::save);
 
-        // Очищаем корзину пользователя
         cartItemRepository.deleteAll(cart.getItems());
         cart.getItems().clear();
         cart.setTotal(BigDecimal.ZERO);
         cartRepository.save(cart);
-    }
-
-    /**
-     * Маппинг сущности Order в DTO с гарантированным расчетом total
-     */
-    public OrderDto toDto(Order order) {
-        List<OrderItemDto> itemDtos = order.getItems().stream()
-                .map(this::toOrderItemDto)
-                .collect(Collectors.toList());
-        return new OrderDto(
-                order.getId(),
-                itemDtos,
-                order.getTotalSum(),
-                order.getDateTime()
-        );
-    }
-
-    /**
-     * Маппинг позиции заказа с расчетом суммы по позиции (total)
-     */
-    public OrderItemDto toOrderItemDto(OrderItem entity) {
-        BigDecimal total = entity.getPrice().multiply(BigDecimal.valueOf(entity.getCount()));
-        return new OrderItemDto(
-                toItemDto(entity.getItem()),
-                null, // OrderDto не требуется для фронта
-                entity.getCount(),
-                entity.getPrice(),
-                total
-        );
-    }
-
-    /**
-     * Маппинг товара из OrderItem (обычно простой)
-     */
-    private ItemDto toItemDto(Item item) {
-        return new ItemDto(
-                item.getId(),
-                item.getTitle(),
-                item.getDescription(),
-                item.getImgPath(),
-                item.getPrice(),
-                0 // здесь count не нужен!
-        );
     }
 }

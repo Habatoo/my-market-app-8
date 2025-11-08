@@ -23,9 +23,8 @@
     <div class="row p-2" th:each="cartItem : ${cart.items}">
         <div class="col">
             <div class="card">
-                <!-- Важно! Обращение к картинке: cartItem.item.imgPath() для record, cartItem.item.imgPath для класса -->
                 <img class="p-2"
-                     th:src="@{'/' + ${cartItem.item.imgPath()}}"
+                     th:src="@{${cartItem.item.imgPath()}}"
                      alt="Нет изображения" width="300" height="300">
                 <div class="card-body">
                     <h5 class="card-title" th:text="${cartItem.item.title()}"></h5>
