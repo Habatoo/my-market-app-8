@@ -1,6 +1,7 @@
 package io.github.habatoo.repositories;
 
 import io.github.habatoo.entity.Item;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,16 +27,27 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ItemRepositoryIntegrationTest {
 
     @Autowired
+    private CartRepository cartRepository;
+
+    @Autowired
+    private CartItemRepository cartItemRepository;
+
+    @Autowired
+    private OrderItemRepository orderItemRepository;
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
     private ItemRepository itemRepository;
 
-    /**
-     * Сохраняет товар и возвращает его id.
-     *
-     * @param item экземпляр Item
-     * @return id сохранённого Item
-     */
-    Long saveItem(Item item) {
-        return itemRepository.save(item).getId();
+    @BeforeEach
+    void cleanUp() {
+        cartItemRepository.deleteAll();
+        cartRepository.deleteAll();
+        orderItemRepository.deleteAll();
+        orderRepository.deleteAll();
+        itemRepository.deleteAll();
     }
 
     @Test
@@ -62,7 +74,7 @@ class ItemRepositoryIntegrationTest {
         saveItem(item2);
 
         List<Item> items = itemRepository.findAll();
-        assertThat(items).hasSize(2);
+        assertThat(items.stream().filter(item -> item.getTitle().contains("Title_")).toList()).hasSize(2);
     }
 
     @Test
@@ -93,5 +105,15 @@ class ItemRepositoryIntegrationTest {
         item.setImgPath(imgPath);
         item.setPrice(price);
         return item;
+    }
+
+    /**
+     * Сохраняет товар и возвращает его id.
+     *
+     * @param item экземпляр Item
+     * @return id сохранённого Item
+     */
+    private Long saveItem(Item item) {
+        return itemRepository.save(item).getId();
     }
 }

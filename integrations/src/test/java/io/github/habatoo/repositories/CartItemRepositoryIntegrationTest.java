@@ -3,6 +3,7 @@ package io.github.habatoo.repositories;
 import io.github.habatoo.entity.Cart;
 import io.github.habatoo.entity.CartItem;
 import io.github.habatoo.entity.Item;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,13 +30,28 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class CartItemRepositoryIntegrationTest {
 
     @Autowired
+    private CartRepository cartRepository;
+
+    @Autowired
     private CartItemRepository cartItemRepository;
+
+    @Autowired
+    private OrderItemRepository orderItemRepository;
+
+    @Autowired
+    private OrderRepository orderRepository;
 
     @Autowired
     private ItemRepository itemRepository;
 
-    @Autowired
-    private CartRepository cartRepository;
+    @BeforeEach
+    void cleanUp() {
+        cartItemRepository.deleteAll();
+        cartRepository.deleteAll();
+        orderItemRepository.deleteAll();
+        orderRepository.deleteAll();
+        itemRepository.deleteAll();
+    }
 
     @Test
     @DisplayName("Сохранение CartItem и поиск по id")
