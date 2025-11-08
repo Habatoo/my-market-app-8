@@ -1,7 +1,6 @@
 package io.github.habatoo.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -11,7 +10,6 @@ import java.util.List;
  * Заказ пользователя в интернет-магазине.
  * Хранит идентификатор, список заказанных товаров, итоговую сумму заказа и дату оформления.
  */
-@Data
 @Entity
 @Table(name = "orders")
 public class Order {
@@ -31,4 +29,36 @@ public class Order {
     /** Дата и время оформления заказа. */
     @Column(nullable = false)
     private LocalDateTime dateTime;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public List<OrderItem> getItems() {
+        return items;
+    }
+
+    public void setItems(List<OrderItem> items) {
+        this.items = items;
+    }
+
+    public BigDecimal getTotalSum() {
+        return totalSum;
+    }
+
+    public void setTotalSum(BigDecimal totalSum) {
+        this.totalSum = totalSum;
+    }
+
+    public LocalDateTime getDateTime() {
+        return dateTime;
+    }
+
+    public void setDateTime(LocalDateTime dateTime) {
+        this.dateTime = dateTime;
+    }
 }

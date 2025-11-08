@@ -1,7 +1,6 @@
 package io.github.habatoo.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
 
 import java.math.BigDecimal;
 
@@ -9,7 +8,6 @@ import java.math.BigDecimal;
  * Позиция товара в корзине покупателя.
  * Хранит связанный товар, количество и цену на момент добавления.
  */
-@Data
 @Entity
 @Table(name = "cart_items")
 public class CartItem {
@@ -35,4 +33,44 @@ public class CartItem {
     /** Цена товара на момент добавления в корзину. */
     @Column(nullable = false)
     private BigDecimal price;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public Cart getCart() {
+        return cart;
+    }
+
+    public void setCart(Cart cart) {
+        this.cart = cart;
+    }
+
+    public Item getItem() {
+        return item;
+    }
+
+    public void setItem(Item item) {
+        this.item = item;
+    }
+
+    public Integer getCount() {
+        return count;
+    }
+
+    public void setCount(Integer count) {
+        this.count = count;
+    }
+
+    public BigDecimal getPrice() {
+        return price;
+    }
+
+    public void setPrice(BigDecimal price) {
+        this.price = price;
+    }
 }

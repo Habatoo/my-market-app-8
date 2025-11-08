@@ -7,11 +7,13 @@ import java.util.List;
 /**
  * Заказ пользователя в интернет-магазине.
  *
+ * @param id идентификатор покупки
  * @param items    Список позиций в заказе
  * @param totalSum Итоговая сумма заказа
  * @param dateTime Дата и время оформления заказа
  */
 public record OrderDto(
+        Long id,
         List<OrderItemDto> items,
         BigDecimal totalSum,
         LocalDateTime dateTime

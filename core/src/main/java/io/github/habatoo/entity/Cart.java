@@ -1,7 +1,6 @@
 package io.github.habatoo.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -12,7 +11,6 @@ import java.util.List;
  * Хранит идентификатор, список позиций корзины и итоговую сумму.
  * Связь с CartItem — один ко многим, каскад всех операций и удаление "осиротевших" позиций.
  */
-@Data
 @Entity
 @Table(name = "carts")
 public class Cart {
@@ -32,4 +30,28 @@ public class Cart {
      */
     @Column(nullable = false)
     private BigDecimal total = BigDecimal.ZERO;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public List<CartItem> getItems() {
+        return items;
+    }
+
+    public void setItems(List<CartItem> items) {
+        this.items = items;
+    }
+
+    public BigDecimal getTotal() {
+        return total;
+    }
+
+    public void setTotal(BigDecimal total) {
+        this.total = total;
+    }
 }

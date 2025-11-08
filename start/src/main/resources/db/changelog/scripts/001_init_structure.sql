@@ -8,8 +8,8 @@ CREATE TABLE IF NOT EXISTS carts (
 CREATE TABLE IF NOT EXISTS items (
     id BIGSERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
-    description VARCHAR(1024),
-    img_path VARCHAR(255),
+    description VARCHAR,
+    img_path VARCHAR(50),
     price NUMERIC NOT NULL
 );
 
