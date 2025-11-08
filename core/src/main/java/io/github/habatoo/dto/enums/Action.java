@@ -1,4 +1,4 @@
-package io.github.habatoo.dto;
+package io.github.habatoo.dto.enums;
 
 /**
  * Обязательный параметр, объект действия с товаром,
@@ -13,5 +13,10 @@ public enum Action {
     /**
      * Увеличить число товаров с id в корзине на один.
      */
-    PLUS
+    PLUS,
+
+    /**
+     * Удалить товары / корзину.
+     */
+    DELETE
 }

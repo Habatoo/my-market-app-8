@@ -1,7 +1,7 @@
 package io.github.habatoo.dto.request;
 
-import io.github.habatoo.dto.Action;
-import io.github.habatoo.dto.Sort;
+import io.github.habatoo.dto.enums.Action;
+import io.github.habatoo.dto.enums.Sort;
 import lombok.Builder;
 import lombok.Data;
 

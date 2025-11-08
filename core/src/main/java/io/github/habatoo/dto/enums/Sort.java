@@ -1,4 +1,4 @@
-package io.github.habatoo.dto;
+package io.github.habatoo.dto.enums;
 
 /**
  * Способ сортировки товаров.
