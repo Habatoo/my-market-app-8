@@ -21,8 +21,7 @@ dependencies {
     implementation project(':core')
     implementation project(':api')
 
-    implementation 'org.springframework.boot:spring-boot-starter'
-    implementation 'org.springframework.boot:spring-boot-starter-jetty'
+   implementation 'org.springframework.boot:spring-boot-starter'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
