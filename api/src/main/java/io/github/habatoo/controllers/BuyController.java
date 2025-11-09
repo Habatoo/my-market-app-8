@@ -12,6 +12,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 
 import java.util.Comparator;
 
+/**
+ * Контроллер, отвечающий за оформление покупки товара из корзины пользователем.
+ * Логика: оформление заказа, получение нового заказа и перенаправление на страницу заказов.
+ */
 @Controller
 @RequestMapping("/buy")
 @RequiredArgsConstructor
@@ -23,6 +27,12 @@ public class BuyController {
     private final BuyService buyService;
     private final CartService cartService;
 
+    /**
+     * Оформить покупку: из корзины формируется заказ,
+     * осуществляется покупка, выполняется перенаправление на страницу заказа.
+     *
+     * @return redirect на страницу заказов с флагом нового заказа (если создан)
+     */
     @PostMapping
     public String buy() {
         CartDto cart = cartService.getItemsInTheCart();

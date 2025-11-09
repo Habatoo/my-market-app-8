@@ -12,6 +12,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
+/**
+ * Контроллер для работы с заказами пользователя.
+ * Позволяет просматривать список заказов, а также детальную информацию по каждому заказу.
+ */
 @Controller
 @RequestMapping("/orders")
 @RequiredArgsConstructor
@@ -23,6 +27,12 @@ public class OrderController {
 
     private final OrderService orderService;
 
+    /**
+     * Отобразить список всех заказов пользователя.
+     *
+     * @param model модель для передачи атрибутов в шаблон
+     * @return имя шаблона списка заказов
+     */
     @GetMapping
     public String getOrderList(Model model) {
         List<OrderDto> orders = orderService.getOrders();
@@ -31,6 +41,15 @@ public class OrderController {
         return ORDERS;
     }
 
+    /**
+     * Отобразить страницу отдельного заказа по идентификатору.
+     * Позволяет отметить новый заказ через параметр newOrder.
+     *
+     * @param id      идентификатор заказа
+     * @param newOrder булевый флаг — новый ли это заказ (для отображения уведомлений и т.д.)
+     * @param model   модель для передачи атрибутов
+     * @return имя шаблона отдельного заказа
+     */
     @GetMapping("/{id}")
     public String getOrder(
             @PathVariable Long id,

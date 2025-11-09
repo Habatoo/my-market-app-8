@@ -9,6 +9,10 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * Контроллер для работы с корзиной покупателя.
+ * Позволяет отобразить содержимое корзины и изменять количество товаров.
+ */
 @Controller
 @RequestMapping("/cart/items")
 @RequiredArgsConstructor
@@ -18,6 +22,12 @@ public class CartController {
 
     private final CartService cartService;
 
+    /**
+     * Отображает содержимое корзины пользователя.
+     *
+     * @param model модель для передачи атрибутов на страницу
+     * @return имя шаблона страницы корзины
+     */
     @GetMapping
     public String showCart(Model model) {
         CartDto cart = cartService.getItemsInTheCart();
@@ -26,6 +36,14 @@ public class CartController {
         return CART;
     }
 
+    /**
+     * Обрабатывает изменение количества товаров в корзине (добавление/удаление/уменьшение).
+     *
+     * @param id    идентификатор товара
+     * @param action действие над товаром (например, "PLUS" или "MINUS")
+     * @param model  модель для передачи обновлённой корзины
+     * @return имя шаблона страницы корзины
+     */
     @PostMapping
     public String changeNumberOfItemsFromCart(
             @RequestParam("id") Long id,

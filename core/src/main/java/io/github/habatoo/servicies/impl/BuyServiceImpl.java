@@ -40,7 +40,7 @@ public class BuyServiceImpl implements BuyService {
     }
 
     /**
-     * Совершить покупку из корзины: сохранить заказ, рассчитать все суммы
+     * {@inheritDoc}
      */
     @Transactional
     @Override

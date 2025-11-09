@@ -4,7 +4,6 @@ import io.github.habatoo.dto.enums.Action;
 import io.github.habatoo.dto.enums.Sort;
 import io.github.habatoo.dto.request.ChangeNumberOfItemsRequestDto;
 import io.github.habatoo.dto.request.GetItemsRequestDto;
-import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.dto.response.ItemDtoResponse;
 import io.github.habatoo.dto.response.ItemsDtoResponse;
 import io.github.habatoo.servicies.CartService;
@@ -14,6 +13,11 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * Контроллер витрины магазина.
+ * Отвечает за обработку запросов по просмотру списка товаров, отдельной позиции,
+ * а также изменению количества товаров через корзину или карту товара.
+ */
 @Controller
 @RequestMapping("/items")
 @RequiredArgsConstructor
@@ -27,6 +31,17 @@ public class ItemController {
 
     private final CartService cartService;
 
+    /**
+     * Получить и отобразить список товаров с возможностью поиска и сортировки, разбивкой по страницам.
+     * Результаты поиска и корзина передаются на шаблон.
+     *
+     * @param search    строка поиска по названию/описанию
+     * @param sort      способ сортировки (NO, ALPHA, PRICE)
+     * @param pageSize  размер страницы
+     * @param pageNumber номер текущей страницы
+     * @param model     модель для передачи атрибутов во view
+     * @return имя шаблона списка товаров
+     */
     @GetMapping
     public String getItems(
             @RequestParam(value = "search", required = false) String search,
@@ -51,6 +66,17 @@ public class ItemController {
         return ITEMS;
     }
 
+    /**
+     * Изменяет количество конкретного товара в корзине и выполняет редирект на витрину с сохранением фильтров.
+     *
+     * @param id        идентификатор товара
+     * @param action    действие ('PLUS' или 'MINUS')
+     * @param search    параметр поиска (для сохранения фильтра)
+     * @param sort      параметр сортировки
+     * @param pageSize  размер страницы
+     * @param pageNumber номер страницы
+     * @return redirect на витрину товаров с актуальными фильтрами
+     */
     @PostMapping
     public String changeNumberOfItems(
             @RequestParam("id") Long id,
@@ -71,6 +97,13 @@ public class ItemController {
                 + "&pageNumber=" + pageNumber;
     }
 
+    /**
+     * Отобразить страницу отдельного товара, включая количество товара в корзине.
+     *
+     * @param id    идентификатор товара
+     * @param model модель для передачи атрибутов
+     * @return имя шаблона отдельного товара
+     */
     @GetMapping("/{id}")
     public String getItemPage(
             @PathVariable("id") Long id,
@@ -82,6 +115,14 @@ public class ItemController {
         return ITEM;
     }
 
+    /**
+     * Изменяет количество именно из страницы позиции товара и возвращает её же с актуальными данными.
+     *
+     * @param id    идентификатор товара
+     * @param action действие над количеством
+     * @param model модель для передачи атрибутов
+     * @return имя шаблона отдельного товара
+     */
     @PostMapping("/{id}")
     public String changeItemFromItemPage(
             @PathVariable("id") Long id,

@@ -5,6 +5,7 @@ package io.github.habatoo.servicies;
  * Предоставляет бизнес-логику для совершения покупки.
  */
 public interface BuyService {
+
     /**
      * Эндпоинт совершения заказа
      * POST /buy
