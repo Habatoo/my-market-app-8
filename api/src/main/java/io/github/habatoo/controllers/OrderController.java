@@ -1,59 +1,44 @@
 package io.github.habatoo.controllers;
 
-import io.github.habatoo.dto.response.CartDto;
 import io.github.habatoo.dto.response.OrderDto;
-import io.github.habatoo.servicies.CartService;
 import io.github.habatoo.servicies.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import java.util.Comparator;
 import java.util.List;
 
 @Controller
+@RequestMapping("/orders")
 @RequiredArgsConstructor
 public class OrderController {
 
+    private static final String ORDERS = "orders";
+
+    private static final String ORDER = "order";
+
     private final OrderService orderService;
 
-    private final CartService cartService;
-
-    @GetMapping("/orders")
+    @GetMapping
     public String getOrderList(Model model) {
-        model.addAttribute("orders", orderService.getOrders());
+        List<OrderDto> orders = orderService.getOrders();
+        model.addAttribute(ORDERS, orders);
 
-        return "orders";
+        return ORDERS;
     }
 
-    @GetMapping("/orders/{id}")
+    @GetMapping("/{id}")
     public String getOrder(
             @PathVariable Long id,
-            @RequestParam(value = "newOrder", required = false, defaultValue = "false") boolean newOrder,
+            @RequestParam(value = ORDER, required = false, defaultValue = "false") boolean newOrder,
             Model model) {
-        model.addAttribute("order", orderService.getOrder(id, newOrder));
+        model.addAttribute(ORDER, orderService.getOrder(id, newOrder));
         model.addAttribute("newOrder", newOrder);
 
-        return "order";
-    }
-
-    @PostMapping("/buy")
-    public String buy() {
-        CartDto cart = cartService.getItemsInTheCart();
-        orderService.buy(cart.id());
-
-        List<OrderDto> orders = orderService.getOrders();
-        OrderDto newOrder = orders.stream()
-                .max(Comparator.comparing(OrderDto::dateTime))
-                .orElse(null);
-
-        if (newOrder != null) {
-            return "redirect:/orders/" + newOrder.id() + "?newOrder=true";
-        }
-        return "redirect:/orders";
+        return ORDER;
     }
 }

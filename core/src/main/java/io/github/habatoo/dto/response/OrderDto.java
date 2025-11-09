@@ -1,5 +1,7 @@
 package io.github.habatoo.dto.response;
 
+import lombok.Builder;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -12,6 +14,7 @@ import java.util.List;
  * @param totalSum Итоговая сумма заказа
  * @param dateTime Дата и время оформления заказа
  */
+@Builder
 public record OrderDto(
         Long id,
         List<OrderItemDto> items,
