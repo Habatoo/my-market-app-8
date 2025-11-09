@@ -73,12 +73,13 @@ public class ItemServiceImpl implements ItemService {
         List<ItemDto> items = mapper.toDto(page);
         List<List<ItemDto>> itemsRows = splitByRows(items, 3);
         CartDto cart = obtainCart();
-        Paging paging = new Paging(
-                items.size(),
-                pageSize,
-                pageNumber,
-                pageNumber > 1,
-                pageNumber * pageSize < items.size());
+        Paging paging = Paging.builder()
+                .total(filtered.size())
+                .pageSize(pageSize)
+                .pageNumber(pageNumber)
+                .hasPrevious(pageNumber > 1)
+                .hasNext(pageNumber * pageSize < filtered.size())
+                .build();
 
         return ItemsDtoResponse.builder()
                 .itemsRows(itemsRows)
