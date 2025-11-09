@@ -2,9 +2,8 @@ package io.github.habatoo.servicies;
 
 import io.github.habatoo.dto.request.ChangeNumberOfItemsRequestDto;
 import io.github.habatoo.dto.request.GetItemsRequestDto;
-import io.github.habatoo.dto.response.ItemDto;
-
-import java.util.List;
+import io.github.habatoo.dto.response.ItemDtoResponse;
+import io.github.habatoo.dto.response.ItemsDtoResponse;
 
 /**
  * Интерфейс для работы с товарами.
@@ -18,25 +17,25 @@ public interface ItemService {
      * GET /items?search=[search]&sort=[sort]&pageNumber=[pageNumber]&pageSize=[pageSize]
      *
      * @param request запрос товаров
-     * @return список товаров ItemDto
+     * @return Структура со списком товаров ItemDto, корзиной и представлением на страницу
      */
-    List<ItemDto> getItems(GetItemsRequestDto request);
+    ItemsDtoResponse getItems(GetItemsRequestDto request);
 
     /**
      * Эндпоинт получения страницы с товаром
      * GET /items/{id}
      *
      * @param id идентификатор товара
-     * @return объект товара ItemDto
+     * @return Структура с объектом товара ItemDto и количеством товара в корзине
      */
-    ItemDto getItem(Long id);
+    ItemDtoResponse getItem(Long id);
 
     /**
      * Эндпоинт уменьшения/увеличения количества товара в корзине со страницы товара в корзине
      * POST /items/{id}?action=[action]
      *
      * @param request запрос на изменение количества товара
-     * @return объект товара ItemDto
+     * @return Структура с объектом товара ItemDto и количеством товара в корзине
      */
-    ItemDto changeNumberOfItemsFromPage(ChangeNumberOfItemsRequestDto request);
+    ItemDtoResponse changeNumberOfItemsFromPage(ChangeNumberOfItemsRequestDto request);
 }

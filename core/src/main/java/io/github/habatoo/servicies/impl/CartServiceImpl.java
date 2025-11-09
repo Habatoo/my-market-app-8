@@ -3,10 +3,12 @@ package io.github.habatoo.servicies.impl;
 import io.github.habatoo.dto.enums.Action;
 import io.github.habatoo.dto.request.ChangeNumberOfItemsRequestDto;
 import io.github.habatoo.dto.response.CartDto;
+import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.entity.Cart;
 import io.github.habatoo.entity.CartItem;
 import io.github.habatoo.entity.Item;
 import io.github.habatoo.mappers.CartMapper;
+import io.github.habatoo.mappers.ItemMapper;
 import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.CartRepository;
 import io.github.habatoo.repositories.ItemRepository;
@@ -27,16 +29,19 @@ public class CartServiceImpl implements CartService {
     private final CartItemRepository cartItemRepository;
     private final ItemRepository itemRepository;
     private final CartMapper cartMapper;
+    private final ItemMapper itemMapper;
 
     public CartServiceImpl(
             CartRepository cartRepository,
             CartItemRepository cartItemRepository,
             ItemRepository itemRepository,
-            CartMapper cartMapper) {
+            CartMapper cartMapper,
+            ItemMapper itemMapper) {
         this.cartRepository = cartRepository;
         this.cartItemRepository = cartItemRepository;
         this.itemRepository = itemRepository;
         this.cartMapper = cartMapper;
+        this.itemMapper = itemMapper;
     }
 
     /**
@@ -44,10 +49,11 @@ public class CartServiceImpl implements CartService {
      */
     @Transactional
     @Override
-    public void changeNumberOfItems(ChangeNumberOfItemsRequestDto request) {
+    public ItemDto changeNumberOfItems(ChangeNumberOfItemsRequestDto request) {
         Cart cart = getCurrentCart();
-        Item item = itemRepository.findById(request.getId()).orElse(null);
-        if (item == null) return;
+        Long itemId = request.getId();
+        Item item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new IllegalStateException("Товар с id=%d не найден".formatted(itemId)));
 
         CartItem cartItem = cart.getItems().stream()
                 .filter(ci -> ci.getItem().getId().equals(item.getId()))
@@ -74,6 +80,8 @@ public class CartServiceImpl implements CartService {
 
         recalculateCartTotal(cart);
         cartRepository.save(cart);
+
+        return itemMapper.toDto(item);
     }
 
     /**

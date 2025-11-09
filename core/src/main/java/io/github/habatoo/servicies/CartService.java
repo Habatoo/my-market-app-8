@@ -2,6 +2,7 @@ package io.github.habatoo.servicies;
 
 import io.github.habatoo.dto.request.ChangeNumberOfItemsRequestDto;
 import io.github.habatoo.dto.response.CartDto;
+import io.github.habatoo.dto.response.ItemDto;
 
 /**
  * Интерфейс для работы с корзиной.
@@ -15,8 +16,9 @@ public interface CartService {
      * возвращает Редирект.
      *
      * @param request запрос на изменение количества товара
+     * @return объект с товаром ItemDto
      */
-    void changeNumberOfItems(ChangeNumberOfItemsRequestDto request);
+    ItemDto changeNumberOfItems(ChangeNumberOfItemsRequestDto request);
 
     /**
      * Эндпоинт получения страницы со списком товаров в корзине

@@ -1,4 +1,12 @@
 package io.github.habatoo.dto.response;
 
-public record Paging(int total, int pageSize, int pageNumber, boolean hasPrevious, boolean hasNext) {
+import lombok.Builder;
+
+@Builder
+public record Paging(
+        int total,
+        int pageSize,
+        int pageNumber,
+        boolean hasPrevious,
+        boolean hasNext) {
 }

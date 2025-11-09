@@ -6,7 +6,7 @@ import java.util.List;
 
 /**
  * Интерфейс для работы с заказами.
- * Предоставляет бизнес-логику для операций с отображением заказов и совершением покупки.
+ * Предоставляет бизнес-логику для операций с отображением заказов.
  */
 public interface OrderService {
 
@@ -27,13 +27,4 @@ public interface OrderService {
      * @return объект заказа OrderDto
      */
     OrderDto getOrder(Long id, boolean newOrder);
-
-    /**
-     * Эндпоинт совершения заказа
-     * POST /buy
-     * Редирект: redirect:/orders/{id}?newOrder=true, где id — идентификатор созданного заказа.
-     *
-     * @param id идентификатор заказа
-     */
-    void buy(Long id);
 }
