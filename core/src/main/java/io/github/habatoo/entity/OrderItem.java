@@ -1,6 +1,8 @@
 package io.github.habatoo.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 
@@ -9,6 +11,8 @@ import java.math.BigDecimal;
  * Хранит ссылку на товар, связанный заказ, количество и цену на момент оформления.
  */
 @Entity
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(name = "order_items")
 public class OrderItem {
     /** Идентификатор позиции заказа (PK). */

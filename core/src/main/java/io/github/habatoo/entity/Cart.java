@@ -1,6 +1,8 @@
 package io.github.habatoo.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -12,6 +14,8 @@ import java.util.List;
  * Связь с CartItem — один ко многим, каскад всех операций и удаление "осиротевших" позиций.
  */
 @Entity
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(name = "carts")
 public class Cart {
     /** Идентификатор корзины (PK). */

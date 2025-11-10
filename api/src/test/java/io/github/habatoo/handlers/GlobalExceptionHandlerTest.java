@@ -1,5 +1,6 @@
 package io.github.habatoo.handlers;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,10 +20,14 @@ import static org.mockito.Mockito.verify;
  * Unit-тесты для GlobalExceptionHandler — проверяют работу перехвата исключений и формирование страниц ошибок.
  */
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Тест загрузки GlobalExceptionHandler")
 class GlobalExceptionHandlerTest {
 
     @Mock
     private Model model;
+
+    @Mock
+    private HttpServletResponse response;
 
     private GlobalExceptionHandler handler;
 
@@ -40,7 +45,7 @@ class GlobalExceptionHandlerTest {
     void testHandleBadRequest() {
         IllegalArgumentException ex = new IllegalArgumentException("Невалидный параметр");
 
-        String viewName = handler.handleBadRequest(ex, model);
+        String viewName = handler.handleBadRequest(ex, model, response);
 
         assertEquals("error/400", viewName);
         verify(model).addAttribute("error", "Ошибка в параметрах запроса: Невалидный параметр");
@@ -55,8 +60,7 @@ class GlobalExceptionHandlerTest {
     @DisplayName("Перехват DataAccessException — страница ошибки базы данных")
     void testHandleDatabaseError() {
         DataAccessException ex = new DataAccessResourceFailureException("БД недоступна");
-
-        String viewName = handler.handleDatabaseError(ex, model);
+        String viewName = handler.handleDatabaseError(ex, model, response);
 
         assertEquals("error/db", viewName);
         verify(model).addAttribute("error", "Ошибка базы данных (БД): БД недоступна");
@@ -72,11 +76,30 @@ class GlobalExceptionHandlerTest {
     void testHandleNotFound() {
         NoHandlerFoundException ex = new NoHandlerFoundException("GET", "/notfound", new HttpHeaders());
 
-        String viewName = handler.handleNotFound(ex, model);
+        String viewName = handler.handleNotFound(ex, model, response);
 
         assertEquals("error/404", viewName);
         verify(model).addAttribute("error", "Страница не найдена или удалена");
         verify(model).addAttribute("status", 404);
+    }
+
+    /**
+     * Проверяет обработку IllegalStateException:
+     * - устанавливается статус 500
+     * - в модель добавляется сообщение "Корзина не найдена" и статус 500
+     * - имя view — "error/500"
+     */
+    @Test
+    @DisplayName("Перехват IllegalStateException — страница error/500 и статус 500")
+    void testHandleIllegalStateException() {
+        IllegalStateException ex = new IllegalStateException("Корзина отсутствует");
+
+        String viewName = handler.handleIllegalStateException(ex, model, response);
+
+        assertEquals("error/500", viewName);
+        verify(response).setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        verify(model).addAttribute("error", "Корзина не найдена");
+        verify(model).addAttribute("status", 500);
     }
 
     /**
@@ -88,7 +111,7 @@ class GlobalExceptionHandlerTest {
     void testHandleGenericException() {
         Exception ex = new Exception("Критическая ошибка");
 
-        String viewName = handler.handleGenericException(ex, model);
+        String viewName = handler.handleGenericException(ex, model, response);
 
         assertEquals("error/500", viewName);
         verify(model).addAttribute("error", "Внутренняя ошибка сервера");

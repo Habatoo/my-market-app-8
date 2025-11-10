@@ -1,6 +1,9 @@
 package io.github.habatoo.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -11,6 +14,8 @@ import java.util.List;
  * Хранит идентификатор, список заказанных товаров, итоговую сумму заказа и дату оформления.
  */
 @Entity
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(name = "orders")
 public class Order {
     /** Идентификатор заказа (PK). */

@@ -1,6 +1,8 @@
 package io.github.habatoo.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.util.Objects;
@@ -10,6 +12,8 @@ import java.util.Objects;
  * Хранит название, описание, изображение, цену и вспомогательное поле для отображения количества.
  */
 @Entity
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(name = "items")
 public class Item {
     /** Идентификатор товара (PK). */

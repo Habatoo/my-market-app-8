@@ -1,6 +1,8 @@
 package io.github.habatoo.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 
@@ -9,6 +11,8 @@ import java.math.BigDecimal;
  * Хранит связанный товар, количество и цену на момент добавления.
  */
 @Entity
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(name = "cart_items")
 public class CartItem {
     /** Идентификатор позиции корзины (PK). */
