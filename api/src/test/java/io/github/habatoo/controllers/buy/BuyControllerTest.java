@@ -6,6 +6,7 @@ import io.github.habatoo.dto.response.OrderDto;
 import io.github.habatoo.servicies.BuyService;
 import io.github.habatoo.servicies.CartService;
 import io.github.habatoo.servicies.OrderService;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -18,7 +19,12 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
+/**
+ * Unit-тесты для BuyController с использованием Mockito.
+ * Проверяет обработку сценариев успешной покупки (создаётся новый заказ) и покупки без заказов.
+ */
 @ExtendWith(MockitoExtension.class)
+@DisplayName("Тесты для BuyController")
 class BuyControllerTest {
 
     @Mock
@@ -33,7 +39,11 @@ class BuyControllerTest {
     @InjectMocks
     private BuyController buyController;
 
+    /**
+     * Тест кейс: успешное оформление покупки — должен произойти редирект на последний заказ с флагом newOrder.
+     */
     @Test
+    @DisplayName("Успешная покупка — редирект на новый заказ с флагом newOrder")
     void testBuyWithNewOrderTest() {
         CartDto cart = CartDto.builder().id(1L).build();
         OrderDto order1 = OrderDto.builder().id(10L).dateTime(LocalDateTime.now().minusMinutes(5)).build();
@@ -51,7 +61,11 @@ class BuyControllerTest {
         verify(cartService).getItemsInTheCart();
     }
 
+    /**
+     * Тест кейс: корзина куплена, но новых заказов нет — должен произойти редирект на страницу заказов.
+     */
     @Test
+    @DisplayName("Покупка без заказов — редирект на список заказов")
     void testBuyNoOrdersTest() {
         CartDto cart = CartDto.builder().id(2L).build();
 

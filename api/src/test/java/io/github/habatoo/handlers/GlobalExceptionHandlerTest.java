@@ -1,88 +1,97 @@
 package io.github.habatoo.handlers;
 
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
-import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.http.HttpHeaders;
+import org.springframework.ui.Model;
+import org.springframework.web.servlet.NoHandlerFoundException;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.verify;
 
 /**
- * <h2>Тесты методов GlobalExceptionHandler глобального перехвата исключений.</h2>
- *
- * <p>
- * Данный класс проверяет обработку типовых исключений, возникающих при работе REST-контроллеров,
- * с помощью слоя глобального перехвата {@link GlobalExceptionHandler}.
- * Тесты не поднимают Spring Boot-контекст и используют {@link MockMvc} с ручной настройкой Advice.
- * Проверяются все предопределённые обработчики исключений:
- * <ul>
- *     <li>{@link IllegalArgumentException}</li>
- *     <li>{@link RuntimeException} (и производные)</li>
- * </ul>
- * Каждый тест эмулирует выброс нужного исключения контроллером и проверяет,
- * что обработчик GlobalExceptionHandler корректно возвращает нужный HTTP-status и JSON-ответ.
- * </p>
- *
- * <p>
- * Контекст теста инициализируется один раз для всех тестов — благодаря аннотации {@code @TestInstance(PER_CLASS)}.
- * Для эмуляции исключений в тесте используется {@code TestDummyController} с ручными @GetMapping эндпойнтами.
- * </p>
- *
- * @see GlobalExceptionHandler
- * @see MockMvc
+ * Unit-тесты для GlobalExceptionHandler — проверяют работу перехвата исключений и формирование страниц ошибок.
  */
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@Import(TestConfig.class)
-@DisplayName("Тесты методов GlobalExceptionHandler глобального перехвата исключений.")
+@ExtendWith(MockitoExtension.class)
 class GlobalExceptionHandlerTest {
 
-    private MockMvc mockMvc;
+    @Mock
+    private Model model;
 
-    /**
-     * <p>
-     * Инициализация {@link MockMvc} c настройкой dummy-контроллера и глобального Advice.
-     * Выполняется один раз для всего класса тестов.
-     * </p>
-     */
-    @BeforeAll
-    void setUpAll() {
-        mockMvc = MockMvcBuilders
-                .standaloneSetup(new TestDummyController())
-                .setControllerAdvice(new GlobalExceptionHandler())
-                .build();
+    private GlobalExceptionHandler handler;
+
+    @BeforeEach
+    void setup() {
+        handler = new GlobalExceptionHandler();
     }
 
     /**
-     * <p>
-     * Проверяет корректную обработку и возврат ответа для исключения {@link IllegalArgumentException}.
-     * Ожидется статус 400 и JSON с текстом исключения.
-     * </p>
+     * Тест обработки IllegalArgumentException (валидация).
+     * Проверяет передачу сообщения и кода ошибки в модель и возврат шаблона ошибки 400.
      */
     @Test
-    @DisplayName("Тесты перехвата IllegalArgumentException.")
-    void testIllegalArgument() throws Exception {
-        mockMvc.perform(get("/illegal").accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string("{\"error\":\"bad arg\"}"));
+    @DisplayName("Перехват IllegalArgumentException — страница 400")
+    void testHandleBadRequest() {
+        IllegalArgumentException ex = new IllegalArgumentException("Невалидный параметр");
+
+        String viewName = handler.handleBadRequest(ex, model);
+
+        assertEquals("error/400", viewName);
+        verify(model).addAttribute("error", "Ошибка в параметрах запроса: Невалидный параметр");
+        verify(model).addAttribute("status", 400);
     }
 
     /**
-     * <p>
-     * Проверяет обработку любого другого типа {@link RuntimeException}.
-     * Ожидется статус 500 и стандартный текст ошибки "Internal server error".
-     * </p>
+     * Тест обработки DataAccessException (ошибка работы с БД).
+     * Проверяет корректную передачу информации в модель и возврат шаблона ошибки БД.
      */
     @Test
-    @DisplayName("Тесты перехвата RuntimeException.")
-    void testGenericException() throws Exception {
-        mockMvc.perform(get("/common").accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isInternalServerError())
-                .andExpect(content().string("{\"error\":\"Internal server error\"}"));
+    @DisplayName("Перехват DataAccessException — страница ошибки базы данных")
+    void testHandleDatabaseError() {
+        DataAccessException ex = new DataAccessResourceFailureException("БД недоступна");
+
+        String viewName = handler.handleDatabaseError(ex, model);
+
+        assertEquals("error/db", viewName);
+        verify(model).addAttribute("error", "Ошибка базы данных (БД): БД недоступна");
+        verify(model).addAttribute("status", 500);
+    }
+
+    /**
+     * Тест обработки NoHandlerFoundException (ошибка 404).
+     * Проверяет, что возвращается страница ошибки 404 с нужными атрибутами.
+     */
+    @Test
+    @DisplayName("Перехват NoHandlerFoundException — страница 404")
+    void testHandleNotFound() {
+        NoHandlerFoundException ex = new NoHandlerFoundException("GET", "/notfound", new HttpHeaders());
+
+        String viewName = handler.handleNotFound(ex, model);
+
+        assertEquals("error/404", viewName);
+        verify(model).addAttribute("error", "Страница не найдена или удалена");
+        verify(model).addAttribute("status", 404);
+    }
+
+    /**
+     * Тест глобального перехвата неизвестных ошибок (Exception).
+     * Проверяет возврат страницы 500 с дефолтным сообщением.
+     */
+    @Test
+    @DisplayName("Глобальный перехват Exception — страница 500")
+    void testHandleGenericException() {
+        Exception ex = new Exception("Критическая ошибка");
+
+        String viewName = handler.handleGenericException(ex, model);
+
+        assertEquals("error/500", viewName);
+        verify(model).addAttribute("error", "Внутренняя ошибка сервера");
+        verify(model).addAttribute("status", 500);
     }
 }

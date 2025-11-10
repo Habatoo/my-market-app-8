@@ -33,33 +33,21 @@ public class ItemController {
 
     /**
      * Получить и отобразить список товаров с возможностью поиска и сортировки, разбивкой по страницам.
-     * Результаты поиска и корзина передаются на шаблон.
+     * DTO связывается с параметрами запроса через @ModelAttribute.
      *
-     * @param search    строка поиска по названию/описанию
-     * @param sort      способ сортировки (NO, ALPHA, PRICE)
-     * @param pageSize  размер страницы
-     * @param pageNumber номер текущей страницы
-     * @param model     модель для передачи атрибутов во view
+     * @param req   DTO с параметрами фильтрации, поиска и пагинации
+     * @param model модель для передачи атрибутов во view
      * @return имя шаблона списка товаров
      */
     @GetMapping
     public String getItems(
-            @RequestParam(value = "search", required = false) String search,
-            @RequestParam(value = "sort", required = false) Sort sort,
-            @RequestParam(value = "pageSize", required = false, defaultValue = "5") Integer pageSize,
-            @RequestParam(value = "pageNumber", required = false, defaultValue = "1") Integer pageNumber,
+            @ModelAttribute GetItemsRequestDto req,
             Model model) {
-        GetItemsRequestDto req = GetItemsRequestDto.builder()
-                .search(search)
-                .sort(sort != null ? sort : Sort.NO)
-                .pageNumber(pageNumber)
-                .pageSize(pageSize)
-                .build();
         ItemsDtoResponse items = itemService.getItems(req);
 
         model.addAttribute("cart", items.cart());
         model.addAttribute(ITEMS, items.itemsRows());
-        model.addAttribute("search", search == null ? "" : search);
+        model.addAttribute("search", req.getSearch() == null ? "" : req.getSearch());
         model.addAttribute("sort", req.getSort());
         model.addAttribute("paging", items.paging());
 
@@ -68,33 +56,20 @@ public class ItemController {
 
     /**
      * Изменяет количество конкретного товара в корзине и выполняет редирект на витрину с сохранением фильтров.
+     * DTO-запрос связывается через @ModelAttribute.
      *
-     * @param id        идентификатор товара
-     * @param action    действие ('PLUS' или 'MINUS')
-     * @param search    параметр поиска (для сохранения фильтра)
-     * @param sort      параметр сортировки
-     * @param pageSize  размер страницы
-     * @param pageNumber номер страницы
+     * @param req DTO с параметрами товара, действия и фильтров
      * @return redirect на витрину товаров с актуальными фильтрами
      */
     @PostMapping
     public String changeNumberOfItems(
-            @RequestParam("id") Long id,
-            @RequestParam("action") String action,
-            @RequestParam(value = "search", required = false) String search,
-            @RequestParam(value = "sort", required = false) Sort sort,
-            @RequestParam(value = "pageSize", required = false, defaultValue = "5") Integer pageSize,
-            @RequestParam(value = "pageNumber", required = false, defaultValue = "1") Integer pageNumber) {
-        ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
-                .id(id)
-                .action(Action.valueOf(action))
-                .build();
+            @ModelAttribute ChangeNumberOfItemsRequestDto req) {
         cartService.changeNumberOfItems(req);
 
-        return "redirect:/items?search=" + (search == null ? "" : search)
-                + "&sort=" + (sort == null ? "NO" : sort)
-                + "&pageSize=" + pageSize
-                + "&pageNumber=" + pageNumber;
+        return "redirect:/items?search=" + (req.getSearch() == null ? "" : req.getSearch())
+                + "&sort=" + (req.getSort() == null ? "NO" : req.getSort())
+                + "&pageSize=" + (req.getPageSize() == null ? 5 : req.getPageSize())
+                + "&pageNumber=" + (req.getPageNumber() == null ? 1 : req.getPageNumber());
     }
 
     /**
@@ -116,23 +91,22 @@ public class ItemController {
     }
 
     /**
-     * Изменяет количество именно из страницы позиции товара и возвращает её же с актуальными данными.
+     * Изменяет количество товара из страницы позиции и возвращает её же с актуальными данными.
+     * DTO-запрос связывается через @ModelAttribute.
      *
-     * @param id    идентификатор товара
-     * @param action действие над количеством
+     * @param id    идентификатор товара (из @PathVariable)
+     * @param req   DTO только с action (или можно сделать все параметры, если надо)
      * @param model модель для передачи атрибутов
      * @return имя шаблона отдельного товара
      */
     @PostMapping("/{id}")
     public String changeItemFromItemPage(
             @PathVariable("id") Long id,
-            @RequestParam("action") String action,
+            @ModelAttribute ChangeNumberOfItemsRequestDto req,
             Model model) {
-        ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
-                .id(id)
-                .action(Action.valueOf(action))
-                .build();
+        req.setId(id);
         ItemDtoResponse item = itemService.changeNumberOfItemsFromPage(req);
+
         model.addAttribute(ITEM, item.item());
         model.addAttribute("cartCount", item.cartCount());
 

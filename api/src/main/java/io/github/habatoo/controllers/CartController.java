@@ -37,26 +37,22 @@ public class CartController {
     }
 
     /**
-     * Обрабатывает изменение количества товаров в корзине (добавление/удаление/уменьшение).
+     * Обрабатывает изменение количества товаров в корзине (добавление/удаление/уменьшение)
+     * через @ModelAttribute для автоматического связвания параметров запроса с DTO.
      *
-     * @param id    идентификатор товара
-     * @param action действие над товаром (например, "PLUS" или "MINUS")
-     * @param model  модель для передачи обновлённой корзины
+     * @param req   DTO-запрос с идентификатором товара и действием (PLUS/MINUS)
+     * @param model модель для передачи обновлённой корзины
      * @return имя шаблона страницы корзины
      */
     @PostMapping
     public String changeNumberOfItemsFromCart(
-            @RequestParam("id") Long id,
-            @RequestParam("action") String action,
+            @ModelAttribute ChangeNumberOfItemsRequestDto req,
             Model model
     ) {
-        ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
-                .id(id)
-                .action(Action.valueOf(action))
-                .build();
         CartDto cart = cartService.changeNumberOfItemsFromCart(req);
         model.addAttribute(CART, cart);
 
         return CART;
     }
+
 }
