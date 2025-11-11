@@ -17,8 +17,19 @@ my-market-app/              # ROOT проекта
 ├── api/                    # Контроллеры и конфигурация приложения - jar
 ├── bom/                    # BOM с версиями для всего проекта.
 ├── core/                   # Core блок с основной бизнес логикой - jar 
+├── documentation/          # Документация, инструкции, примеры миграций и тестирования
+│ ├── database.md
+│ ├── deploy.md
+│ └── jacoco.md
+├── env/                    # Папка для секретов и настроек
 ├── gradle/                 # Wrapper
+├── integrationtests /      # Интеграционные тесты по проекту
+├── report /                # JacocoReport для генерации отчетеа jacoco в многомодульном проекте
 ├── start /                 # Application - @SpringBootApplication
+│ └── db/changelog/         # Миграции Liquibase
+├── Dockerfilel
+├── docker-compose.yml      # Главный файл оркестрации Docker сервисов
+├── .env                    # Переменные среды (НЕ храните в репозитории)
 ├── README.md
 ```
 ---

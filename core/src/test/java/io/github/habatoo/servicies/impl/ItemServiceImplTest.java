@@ -63,18 +63,38 @@ class ItemServiceImplTest {
     @DisplayName("Поиск, сортировка, пагинация витрины")
     void getItemsVariants(GetItemsRequestDto req, List<Item> all, List<Item> expectedPage) {
         when(repository.findAll()).thenReturn(all);
-        when(mapper.toDto(anyList())).thenAnswer(inv ->
-                ((List<Item>) inv.getArguments()[0]).stream()
+        when(mapper.toDto(anyList())).thenAnswer(inv -> {
+            Object arg = inv.getArgument(0);
+            if (arg instanceof List<?> list) {
+                @SuppressWarnings("unchecked")
+                List<Item> items = (List<Item>) list;
+                return items.stream()
                         .map(item -> new ItemDto(item.getId(), item.getTitle(), item.getDescription(), "", item.getPrice(), 0))
-                        .toList());
+                        .toList();
+            }
+            throw new IllegalArgumentException("Argument for toDto is not a List<Item>");
+        });
         CartDto cart = mock(CartDto.class);
         when(cartService.getItemsInTheCart()).thenReturn(cart);
 
         ItemsDtoResponse response = service.getItems(req);
 
-        assertEquals(expectedPage.size(), response.paging().pageSize());
+        List<Long> actualIds = response.itemsRows().stream()
+                .flatMap(List::stream)
+                .map(ItemDto::id)
+                .filter(id -> id != -1)
+                .toList();
+        List<Long> expectedIds = expectedPage.stream().map(Item::getId).toList();
+        assertEquals(expectedIds, actualIds);
+
+        int toFill = (response.itemsRows().size() * 3) - expectedIds.size();
+        long emptyCount = response.itemsRows().stream()
+                .flatMap(List::stream)
+                .filter(dto -> dto.id() == -1)
+                .count();
+        assertEquals(toFill, emptyCount);
         assertEquals(cart, response.cart());
-        assertNotNull(response.itemsRows());
+        assertNotNull(response.paging());
     }
 
     /**
@@ -99,10 +119,7 @@ class ItemServiceImplTest {
     @Test
     @DisplayName("Поиск по description — фильтрует по подстроке")
     void searchByDescriptionTest() {
-        //Item item = new Item(2L, "title", "СуперОписание", BigDecimal.TEN);
         GetItemsRequestDto req = GetItemsRequestDto.builder().search("описание").build();
-
-        //when(repository.findAll()).thenReturn(List.of(item));
         when(repository.findAll()).thenReturn(List.of());
         when(cartService.getItemsInTheCart()).thenReturn(mock(CartDto.class));
         when(mapper.toDto(anyList())).thenReturn(List.of(new ItemDto(2L, "title", "СуперОписание", "", BigDecimal.TEN, 0)));
@@ -167,22 +184,98 @@ class ItemServiceImplTest {
         Item itemA = new Item(1L, "Alpha", "descA", "", BigDecimal.valueOf(100), 0);
         Item itemB = new Item(2L, "Beta", "descB", "", BigDecimal.valueOf(200), 1);
         Item itemC = new Item(3L, "Gamma", "descC", "", BigDecimal.valueOf(150), 2);
-        // Сортировка, поиск, пагинация
+        Item itemD = new Item(4L, "NotMatched", "descAlpha", "", BigDecimal.valueOf(75), 3);
+
         return Stream.of(
-                Arguments.of( // title поиск и сортировка
-                        GetItemsRequestDto.builder().search("alpha").sort(Sort.ALPHA).pageSize(1).pageNumber(1).build(),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search(null).sort(null).pageSize(2).pageNumber(1).build(),
+                        List.of(itemA, itemB),
+                        List.of(itemA, itemB)
+                ),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search("").sort(null).pageSize(2).pageNumber(1).build(),
+                        List.of(itemA, itemB, itemC),
+                        List.of(itemA, itemB)
+                ),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search("   ").sort(null).pageSize(2).pageNumber(1).build(),
+                        List.of(itemA, itemB, itemC),
+                        List.of(itemA, itemB)
+                ),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search("alpha").sort(null).pageSize(2).pageNumber(1).build(),
                         List.of(itemA, itemB, itemC),
                         List.of(itemA)
                 ),
-                Arguments.of( // сортировка по цене
-                        GetItemsRequestDto.builder().sort(Sort.PRICE).pageSize(2).pageNumber(1).build(),
-                        List.of(itemC, itemB, itemA),
-                        List.of(itemA, itemC)
+                Arguments.of(
+                        GetItemsRequestDto.builder().search("descB").sort(null).pageSize(2).pageNumber(1).build(),
+                        List.of(itemA, itemB, itemC),
+                        List.of(itemB)
                 ),
-                Arguments.of( // без фильтра
-                        GetItemsRequestDto.builder().pageSize(2).pageNumber(1).build(),
-                        List.of(itemA, itemB),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search("no_match").sort(null).pageSize(2).pageNumber(1).build(),
+                        List.of(itemA, itemB, itemC),
+                        List.of()
+                ),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search(null).sort(Sort.ALPHA).pageSize(3).pageNumber(1).build(),
+                        List.of(itemB, itemC, itemA),
+                        List.of(itemA, itemB, itemC)
+                ),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search(null).sort(Sort.PRICE).pageSize(3).pageNumber(1).build(),
+                        List.of(itemC, itemB, itemA),
+                        List.of(itemA, itemC, itemB)
+                ),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search(null).sort(null).pageSize(2).pageNumber(1).build(),
+                        List.of(itemA, itemB, itemC),
                         List.of(itemA, itemB)
+                ),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search(null).sort(null).pageSize(2).pageNumber(2).build(),
+                        List.of(itemA, itemB, itemC),
+                        List.of(itemC)
+                ),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search(null).sort(null).pageSize(2).pageNumber(3).build(),
+                        List.of(itemA, itemB, itemC),
+                        List.of()
+                ),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search(null).sort(null).pageSize(5).pageNumber(1).build(),
+                        List.of(),
+                        List.of()
+                ),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search(null).sort(null).build(),
+                        List.of(itemA, itemB, itemC),
+                        List.of(itemA, itemB, itemC)
+                ),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search("descAlpha").sort(null).pageSize(2).pageNumber(1).build(),
+                        List.of(itemA, itemB, itemC, itemD),
+                        List.of(itemD)
+                ),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search("Alpha").sort(null).pageSize(3).pageNumber(1).build(),
+                        List.of(itemA, itemD, itemC),
+                        List.of(itemA, itemD)
+                ),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search(null).sort(Sort.ALPHA).pageSize(3).pageNumber(1).build(),
+                        List.of(itemB, itemA, itemC),
+                        List.of(itemA, itemB, itemC)
+                ),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search(null).sort(Sort.PRICE).pageSize(3).pageNumber(1).build(),
+                        List.of(itemC, itemB, itemA),
+                        List.of(itemA, itemC, itemB)
+                ),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search(null).sort(Sort.NO).pageSize(3).pageNumber(1).build(),
+                        List.of(itemC, itemB, itemA),
+                        List.of(itemC, itemB, itemA)
                 )
         );
     }

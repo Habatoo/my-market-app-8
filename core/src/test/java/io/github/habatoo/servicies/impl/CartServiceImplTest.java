@@ -16,6 +16,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -23,6 +26,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -195,6 +199,84 @@ class CartServiceImplTest {
 
         assertEquals(dto, result);
         verify(cartMapper).toDto(cart);
+    }
+
+    @ParameterizedTest
+    @MethodSource("cartChangeCases")
+    @DisplayName("Изменение количества товаров и все ветки changeNumberOfItemsFromCart")
+    void changeNumberOfItemsFromCartVariants(
+            List<Cart> cartsInRepo,
+            Optional<Item> itemOpt,
+            ChangeNumberOfItemsRequestDto request,
+            boolean expectNewCart,
+            boolean expectCartItemCreate,
+            boolean expectCartItemUpdate,
+            boolean expectCartItemDelete,
+            boolean expectException
+    ) {
+        if (itemOpt.isPresent()) {
+            when(itemRepository.findById(request.getId())).thenReturn(itemOpt);
+            when(itemMapper.toDto(itemOpt.get())).thenReturn(mock(ItemDto.class));
+        } else {
+            when(itemRepository.findById(request.getId())).thenReturn(Optional.empty());
+        }
+        when(cartRepository.findAll()).thenReturn(cartsInRepo);
+        lenient().when(cartRepository.save(any(Cart.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CartDto cartDto = mock(CartDto.class);
+        lenient().when(cartMapper.toDto(any(Cart.class))).thenReturn(cartDto);
+
+        if (expectException) {
+            assertThrows(IllegalStateException.class, () -> cartService.changeNumberOfItemsFromCart(request));
+            return;
+        }
+
+        CartDto result = cartService.changeNumberOfItemsFromCart(request);
+
+        assertEquals(cartDto, result);
+
+        if (expectNewCart) {
+            verify(cartRepository, atLeastOnce()).save(argThat(cart -> cart.getItems().isEmpty()));
+        }
+        if (expectCartItemCreate) {
+            verify(cartItemRepository, atLeastOnce()).save(any(CartItem.class));
+        }
+        if (expectCartItemUpdate) {
+            verify(cartItemRepository, atLeastOnce()).save(any(CartItem.class));
+        }
+        if (expectCartItemDelete) {
+            verify(cartItemRepository, atLeastOnce()).delete(any(CartItem.class));
+        }
+    }
+
+    static Stream<Arguments> cartChangeCases() {
+        Item item = new Item();
+        item.setId(1L);
+        item.setPrice(BigDecimal.valueOf(500));
+        CartItem itemInCart = new CartItem();
+        itemInCart.setItem(item);
+        itemInCart.setCount(1);
+        itemInCart.setPrice(item.getPrice());
+
+        Cart cartWithItem = new Cart();
+        cartWithItem.setItems(new ArrayList<>(List.of(itemInCart)));
+
+        Cart emptyCart = new Cart();
+        emptyCart.setItems(new ArrayList<>());
+
+        ChangeNumberOfItemsRequestDto plusReq = ChangeNumberOfItemsRequestDto.builder().id(1L).action(Action.PLUS).build();
+        ChangeNumberOfItemsRequestDto minusReq = ChangeNumberOfItemsRequestDto.builder().id(1L).action(Action.MINUS).build();
+
+        return Stream.of(
+                Arguments.of(List.of(), Optional.of(item), plusReq, true, true, false, false, false),
+                Arguments.of(List.of(), Optional.of(item), minusReq, true, false, false, false, false),
+                Arguments.of(List.of(emptyCart), Optional.of(item), plusReq, false, true, false, false, false),
+                Arguments.of(List.of(emptyCart), Optional.of(item), minusReq, false, false, false, false, false),
+                Arguments.of(List.of(cartWithItem), Optional.of(item), plusReq, false, false, true, false, false),
+                Arguments.of(List.of(cartWithItem), Optional.of(item), minusReq, false, false, true, false, false),
+                Arguments.of(List.of(cartWithItem), Optional.of(item), minusReq, false, false, false, true, false),
+                Arguments.of(List.of(cartWithItem), Optional.empty(), plusReq, false, false, false, false, true)
+        );
     }
 
     private Cart getCartWithItem(Long itemId, int count, BigDecimal price) {

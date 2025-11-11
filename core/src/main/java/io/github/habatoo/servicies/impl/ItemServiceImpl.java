@@ -58,8 +58,6 @@ public class ItemServiceImpl implements ItemService {
                         .sorted(java.util.Comparator.comparing(Item::getTitle)).toList();
                 case PRICE -> filtered = filtered.stream()
                         .sorted(java.util.Comparator.comparing(Item::getPrice)).toList();
-                default -> {
-                }
             }
         }
 

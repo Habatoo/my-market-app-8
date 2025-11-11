@@ -11,12 +11,19 @@ import io.github.habatoo.servicies.ItemService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ui.Model;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
@@ -46,15 +53,17 @@ class ItemControllerTest {
      * Тест получения и отображения списка товаров с фильтрацией и пагинацией.
      * Проверяет добавление объектов в модель и возврат правильного имени шаблона.
      */
-    @Test
-    @DisplayName("GET \"/items\" — успешно возвращает витрину товаров с фильтрацией")
-    void testGetItems() {
+    @ParameterizedTest
+    @MethodSource("paramsCombinations")
+    @DisplayName("GET \"/items\" — все варианты параметров (null, пустые, корректные)")
+    void testGetItemsVariants(String search, Sort sort, Integer pageNumber, Integer pageSize) {
         GetItemsRequestDto req = GetItemsRequestDto.builder()
-                .search("test")
-                .sort(Sort.NO)
-                .pageNumber(1)
-                .pageSize(5)
+                .search(search)
+                .sort(sort)
+                .pageNumber(pageNumber)
+                .pageSize(pageSize)
                 .build();
+
         ItemsDtoResponse itemsResp = mock(ItemsDtoResponse.class);
         when(itemService.getItems(any(GetItemsRequestDto.class))).thenReturn(itemsResp);
         when(itemsResp.cart()).thenReturn(mock(CartDto.class));
@@ -67,8 +76,8 @@ class ItemControllerTest {
         verify(itemService).getItems(any(GetItemsRequestDto.class));
         verify(model).addAttribute("cart", itemsResp.cart());
         verify(model).addAttribute("items", itemsResp.itemsRows());
-        verify(model).addAttribute("search", "test");
-        verify(model).addAttribute("sort", Sort.NO);
+        verify(model).addAttribute("search", (search == null ? "" : search));
+        verify(model).addAttribute("sort", sort);
         verify(model).addAttribute("paging", itemsResp.paging());
     }
 
@@ -144,5 +153,68 @@ class ItemControllerTest {
                 requestDto.getId().equals(id) && requestDto.getAction() == Action.MINUS));
         verify(model).addAttribute("item", item.item());
         verify(model).addAttribute("cartCount", item.cartCount());
+    }
+
+
+    @ParameterizedTest
+    @MethodSource("redirectParams")
+    @DisplayName("POST /changeNumberOfItems — все варианты формирования redirect")
+    void changeNumberOfItemsRedirectTest(
+            String search, Sort sort, Integer pageNumber, Integer pageSize,
+            String expectedSearch, String expectedSort,
+            int expectedPageSize, int expectedPageNumber,
+            String expectedRedirect
+    ) {
+        ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
+                .search(search)
+                .sort(sort)
+                .pageSize(pageSize)
+                .pageNumber(pageNumber)
+                .build();
+
+        String redirect = itemController.changeNumberOfItems(req);
+
+        assertEquals(expectedRedirect, redirect);
+
+        Map<String, String> params = Arrays.stream(redirect.substring(redirect.indexOf("?")+1).split("&"))
+                .map(kv -> kv.split("=", 2))
+                .collect(Collectors.toMap(parts -> parts[0], parts -> parts.length == 2 ? parts[1] : ""));
+
+        assertEquals(expectedSearch, params.get("search"));
+        assertEquals(expectedSort, params.get("sort"));
+        assertEquals(String.valueOf(expectedPageSize), params.get("pageSize"));
+        assertEquals(String.valueOf(expectedPageNumber), params.get("pageNumber"));
+    }
+
+    static Stream<Arguments> redirectParams() {
+        return Stream.of(
+                Arguments.of(null, null, null, null, "", "NO", 5, 1,
+                        "redirect:/items?search=&sort=NO&pageSize=5&pageNumber=1"),
+                Arguments.of("", Sort.NO, 1, 5, "", "NO", 5, 1,
+                        "redirect:/items?search=&sort=NO&pageSize=5&pageNumber=1"),
+                Arguments.of("поиск", Sort.ALPHA, 2, 10, "поиск", "ALPHA", 10, 2,
+                        "redirect:/items?search=поиск&sort=ALPHA&pageSize=10&pageNumber=2"),
+                Arguments.of("   ", Sort.PRICE, null, null, "   ", "PRICE", 5, 1,
+                        "redirect:/items?search=   &sort=PRICE&pageSize=5&pageNumber=1"),
+                Arguments.of(null, null, null, 2, "", "NO", 2, 1,
+                        "redirect:/items?search=&sort=NO&pageSize=2&pageNumber=1"),
+                Arguments.of(null, null, 3, null, "", "NO", 5, 3,
+                        "redirect:/items?search=&sort=NO&pageSize=5&pageNumber=3"),
+                Arguments.of("text", Sort.NO, null, null, "text", "NO", 5, 1,
+                        "redirect:/items?search=text&sort=NO&pageSize=5&pageNumber=1")
+        );
+    }
+
+    private static Stream<Arguments> paramsCombinations() {
+        return Stream.of(
+                Arguments.of(null, null, null, null),
+                Arguments.of("", Sort.NO, 1, 5),
+                Arguments.of("test", Sort.NO, 1, 5),
+                Arguments.of("поиск", Sort.PRICE, 2, 10),
+                Arguments.of("", Sort.ALPHA, null, null),
+                Arguments.of(null, Sort.NO, 1, null),
+                Arguments.of("   ", Sort.NO, null, 5),
+                Arguments.of(null, null, 99, 99)
+        );
     }
 }

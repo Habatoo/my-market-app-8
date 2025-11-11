@@ -2,25 +2,29 @@ package io.github.habatoo;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+import org.springframework.boot.SpringApplication;
 
 /**
- * Smoke-тест, проверяющий, что контекст Spring Boot приложения поднимается без ошибок.
+ * Класс теста для основного класса приложения {@link Application}.
+ * Проверяет корректный запуск метода main и вызов SpringApplication.run.
  */
-@ActiveProfiles("test")
-@SpringBootTest(
-        classes = io.github.habatoo.Application.class
-)
-@DisplayName("Проверка загрузки контекста приложения")
+@DisplayName("Тесты для класса Application")
 class ApplicationTest {
 
     /**
-     * Основной smoke-тест: приложение успешно стартует, если тест не падает с ошибкой конфигурации.
+     * Тест проверяет, что при запуске метода main
+     * вызывается метод SpringApplication.run с правильными параметрами.
      */
     @Test
-    @DisplayName("Контекст приложения должен успешно загружаться")
-    void contextLoads() {
+    @DisplayName("Проверка вызова SpringApplication.run при запуске main")
+    void mainInvokesSpringApplicationRunTest() {
+        try (MockedStatic<SpringApplication> mockedSpring = Mockito.mockStatic(SpringApplication.class)) {
+            String[] args = {};
+            Application.main(args);
 
+            mockedSpring.verify(() -> SpringApplication.run(Application.class, args));
+        }
     }
 }
