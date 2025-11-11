@@ -27,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(BuyController.class)
 @DisplayName("Интеграционный тест BuyController")
-class BuyControllerWebMvcTest {
+class BuyControllerWebMvcIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;

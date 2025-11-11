@@ -23,7 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(OrderController.class)
 @DisplayName("Интеграционный тест OrderController")
-class OrderControllerWebMvcTest {
+class OrderControllerWebMvcIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;

@@ -1,30 +1,10 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/shop_db
-    username: shop_admin
-    password: shop_password
-    hikari:
-      maximum-pool-size: 10
-      connection-timeout: 30000
+    url: jdbc:tc:postgresql:16-alpine:///test
   jpa:
-    open-in-view: false
     hibernate:
       ddl-auto: validate
-  web:
-    cors:
-      path-pattern: "/api/**"
-      allowed-origin-patterns:
-        - "http://localhost"
-        - "http://127.0.0.1"
-      allowed-methods: [GET, POST, PUT, DELETE, OPTIONS]
-      allowed-headers: "*"
-      allow-credentials: true
-      max-age: 3600
-
-liquibase:
-  enabled: true
-  driver-class-name: org.postgresql.Driver
-  url: jdbc:postgresql://localhost:5432/shop_db
-  username: shop_admin
-  password: shop_password
-  context: test
+    open-in-view: false
+  liquibase:
+    enabled: true
+    change-log: classpath:/db/changelog/db.changelog-master.yaml

@@ -3,16 +3,13 @@ package io.github.habatoo.repositories;
 import io.github.habatoo.entity.Cart;
 import io.github.habatoo.entity.CartItem;
 import io.github.habatoo.entity.Item;
-import org.junit.jupiter.api.BeforeEach;
+import io.github.habatoo.utils.BaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,35 +20,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Интеграционные тесты для CartItemRepository.
  * Проверяют сохранение, поиск, удаление позиций корзины, а также обработку невалидных связей.
  */
-@ActiveProfiles("test")
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @DisplayName("Интеграционные тесты CartItemRepository")
-class CartItemRepositoryIntegrationTest {
-
-    @Autowired
-    private CartRepository cartRepository;
-
-    @Autowired
-    private CartItemRepository cartItemRepository;
-
-    @Autowired
-    private OrderItemRepository orderItemRepository;
-
-    @Autowired
-    private OrderRepository orderRepository;
-
-    @Autowired
-    private ItemRepository itemRepository;
-
-    @BeforeEach
-    void cleanUp() {
-        cartItemRepository.deleteAll();
-        cartRepository.deleteAll();
-        orderItemRepository.deleteAll();
-        orderRepository.deleteAll();
-        itemRepository.deleteAll();
-    }
+class CartItemRepositoryIntegrationTest extends BaseTest {
 
     @Test
     @DisplayName("Сохранение CartItem и поиск по id")
@@ -157,61 +129,5 @@ class CartItemRepositoryIntegrationTest {
         cartItemRepository.deleteById(cartItem.getId());
         Optional<CartItem> deleted = cartItemRepository.findById(cartItem.getId());
         assertThat(deleted).isEmpty();
-    }
-
-    /**
-     * Создать и сохранить Cart с указанной суммой.
-     *
-     * @param total итоговая сумма корзины
-     * @return Cart с присвоенным id
-     */
-    private Cart createAndSaveCart(BigDecimal total) {
-        Cart cart = new Cart();
-        cart.setTotal(total);
-        cart.setItems(new ArrayList<>());
-        return cartRepository.save(cart);
-    }
-
-    /**
-     * Создать и сохранить Cart с total = 0.
-     *
-     * @return Новый пустой Cart
-     */
-    private Cart createAndSaveCart() {
-        return createAndSaveCart(BigDecimal.ZERO);
-    }
-
-    /**
-     * Создать и сохранить Item с указанными параметрами.
-     *
-     * @param title название
-     * @param price цена товара
-     * @return Item с присвоенным id
-     */
-    private Item createAndSaveItem(String title, BigDecimal price) {
-        Item item = new Item();
-        item.setTitle(title);
-        item.setDescription("desc_" + title);
-        item.setImgPath("img/" + title);
-        item.setPrice(price);
-        return itemRepository.save(item);
-    }
-
-    /**
-     * Создать и сохранить CartItem для указанной корзины и товара.
-     *
-     * @param cart  корзина
-     * @param item  товар
-     * @param count количество
-     * @param price цена позиции
-     * @return CartItem с присвоенным id
-     */
-    private CartItem createAndSaveCartItem(Cart cart, Item item, int count, BigDecimal price) {
-        CartItem cartItem = new CartItem();
-        cartItem.setCart(cart);
-        cartItem.setItem(item);
-        cartItem.setCount(count);
-        cartItem.setPrice(price);
-        return cartItemRepository.save(cartItem);
     }
 }

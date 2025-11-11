@@ -3,17 +3,14 @@ package io.github.habatoo.repositories;
 import io.github.habatoo.entity.Item;
 import io.github.habatoo.entity.Order;
 import io.github.habatoo.entity.OrderItem;
-import org.junit.jupiter.api.BeforeEach;
+import io.github.habatoo.utils.BaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,35 +20,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Интеграционные тесты для OrderRepository.
  * Проверяет операции сохранения, поиска, удаления и работу связей с позициями заказа.
  */
-@ActiveProfiles("test")
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@DisplayName("Интеграционные тесты OrderRepository")
-class OrderRepositoryIntegrationTest {
-
-    @Autowired
-    private CartRepository cartRepository;
-
-    @Autowired
-    private CartItemRepository cartItemRepository;
-
-    @Autowired
-    private OrderItemRepository orderItemRepository;
-
-    @Autowired
-    private OrderRepository orderRepository;
-
-    @Autowired
-    private ItemRepository itemRepository;
-
-    @BeforeEach
-    void cleanUp() {
-        cartItemRepository.deleteAll();
-        cartRepository.deleteAll();
-        orderItemRepository.deleteAll();
-        orderRepository.deleteAll();
-        itemRepository.deleteAll();
-    }
+@DisplayName("Интеграционные тесты CartItemRepository")
+class OrderRepositoryIntegrationTest extends BaseTest {
 
     @Test
     @DisplayName("Сохранение и поиск заказа по id")
@@ -100,45 +72,5 @@ class OrderRepositoryIntegrationTest {
         createAndSaveOrder(BigDecimal.valueOf(200), LocalDateTime.now());
         List<Order> orders = orderRepository.findAll();
         assertThat(orders).hasSize(2);
-    }
-
-    /**
-     * Создаёт и сохраняет заказ с заданной суммой и временем.
-     */
-    private Order createAndSaveOrder(BigDecimal totalSum, LocalDateTime dateTime) {
-        Order order = new Order();
-        order.setTotalSum(totalSum);
-        order.setDateTime(dateTime);
-        order.setItems(new ArrayList<>());
-        return orderRepository.save(order);
-    }
-
-    /**
-     * Создаёт и сохраняет тестовый Item.
-     */
-    private Item createAndSaveItem(String title, BigDecimal price) {
-        Item item = new Item();
-        item.setTitle(title);
-        item.setDescription("Order " + title);
-        item.setImgPath("img/" + title);
-        item.setPrice(price);
-        return itemRepository.save(item);
-    }
-
-    /**
-     * Добавляет позицию заказа к заказу.
-     */
-    private OrderItem createAndSaveOrderItem(Order order, Item item, int count, BigDecimal price) {
-        OrderItem orderItem = new OrderItem();
-        orderItem.setOrder(order);
-        orderItem.setItem(item);
-        orderItem.setCount(count);
-        orderItem.setPrice(price);
-        orderItemRepository.save(orderItem);
-
-        order.getItems().add(orderItem);
-        orderRepository.save(order);
-
-        return orderItem;
     }
 }

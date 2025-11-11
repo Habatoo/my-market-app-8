@@ -22,7 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(CartController.class)
 @DisplayName("Интеграционный тест CartController")
-class CartControllerWebMvcTest {
+class CartControllerWebMvcIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -42,7 +42,7 @@ class CartControllerWebMvcTest {
         CartDto cartDto = mock(CartDto.class);
         when(cartService.getItemsInTheCart()).thenReturn(cartDto);
 
-        mockMvc.perform(get("/cart"))
+        mockMvc.perform(get("/cart/items"))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("cart", cartDto))
                 .andExpect(view().name("cart"));
@@ -56,7 +56,7 @@ class CartControllerWebMvcTest {
     void showCartServiceErrorTest() throws Exception {
         when(cartService.getItemsInTheCart()).thenThrow(new IllegalStateException("Корзина не найдена"));
 
-        mockMvc.perform(get("/cart"))
+        mockMvc.perform(get("/cart/items"))
                 .andExpect(status().is5xxServerError())
                 .andExpect(view().name("error/500"))
                 .andExpect(model().attributeExists("error"));
