@@ -61,7 +61,7 @@ class OrderControllerWebMvcIntegrationTest {
         OrderDto orderDto = new OrderDto(11L, List.of(), BigDecimal.valueOf(555), LocalDateTime.now());
         when(orderService.getOrder(eq(11L), eq(true))).thenReturn(orderDto);
 
-        mockMvc.perform(get("/orders/11").param("order", "true"))
+        mockMvc.perform(get("/orders/11").param("newOrder", "true"))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("order", orderDto))
                 .andExpect(model().attribute("newOrder", true))

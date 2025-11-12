@@ -1,6 +1,5 @@
 package io.github.habatoo.controllers.buy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.habatoo.controllers.BuyController;
 import io.github.habatoo.dto.response.CartDto;
 import io.github.habatoo.dto.response.OrderDto;
@@ -8,10 +7,7 @@ import io.github.habatoo.handlers.GlobalExceptionHandler;
 import io.github.habatoo.servicies.BuyService;
 import io.github.habatoo.servicies.CartService;
 import io.github.habatoo.servicies.OrderService;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.*;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -21,7 +17,8 @@ import java.util.List;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 /**
  * <h2>Тесты для BuyController c максимальным кешированием MockMvc</h2>
@@ -34,26 +31,30 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * </p>
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@DisplayName("Тесты unit уровня методов контроллера CommentController с использованием Cached MockMvc.")
+@DisplayName("Тесты unit уровня методов контроллера BuyController с использованием Cached MockMvc.")
 class BuyControllerCashedTest {
 
     private MockMvc mockMvc;
     private OrderService orderService;
     private BuyService buyService;
     private CartService cartService;
-    private ObjectMapper objectMapper;
 
     @BeforeAll
     void setUpAll() {
         orderService = mock(OrderService.class);
         buyService = mock(BuyService.class);
         cartService = mock(CartService.class);
-        cartService = mock(CartService.class);
         BuyController buyController = new BuyController(orderService, buyService, cartService);
         mockMvc = MockMvcBuilders.standaloneSetup(buyController)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
-        objectMapper = new ObjectMapper();
+    }
+
+    @BeforeEach
+    void setUp() {
+        reset(orderService);
+        reset(buyService);
+        reset(cartService);
     }
 
     /**

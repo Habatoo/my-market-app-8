@@ -49,9 +49,9 @@ public class OrderController {
      * Отобразить страницу отдельного заказа по идентификатору.
      * Позволяет отметить новый заказ через параметр newOrder.
      *
-     * @param id      идентификатор заказа
+     * @param id       идентификатор заказа
      * @param newOrder булевый флаг — новый ли это заказ (для отображения уведомлений и т.д.)
-     * @param model   модель для передачи атрибутов
+     * @param model    модель для передачи атрибутов
      * @return имя шаблона отдельного заказа
      */
     @GetMapping("/{id}")
@@ -62,8 +62,7 @@ public class OrderController {
         log.info("GET /orders/{} — просмотр заказа, newOrder={}", id, newOrder);
 
         OrderDto order = orderService.getOrder(id, newOrder);
-        log.debug("Получен заказ: id={}, itemsCount={}, totalSum={}",
-                order.id(), order.items() == null ? 0 : order.items().size(), order.totalSum());
+        log.debug("Получен заказ: {}", order);
 
         model.addAttribute(ORDER, order);
         model.addAttribute("newOrder", newOrder);

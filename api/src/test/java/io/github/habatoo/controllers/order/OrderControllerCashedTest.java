@@ -3,10 +3,7 @@ package io.github.habatoo.controllers.order;
 import io.github.habatoo.controllers.OrderController;
 import io.github.habatoo.dto.response.OrderDto;
 import io.github.habatoo.servicies.OrderService;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.*;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.servlet.view.InternalResourceViewResolver;
@@ -43,6 +40,11 @@ class OrderControllerCashedTest {
                 .build();
     }
 
+    @BeforeEach
+    void setUp() {
+        reset(orderService);
+    }
+
     /**
      * Тест отображения списка всех заказов пользователя (GET /orders).
      * Проверяет, что в модель попадёт список заказов и будет возвращён правильный view.
@@ -70,11 +72,13 @@ class OrderControllerCashedTest {
     void getOrderTest() throws Exception {
         Long id = 77L;
         boolean newOrder = true;
-        OrderDto orderDto = mock(OrderDto.class);
+        OrderDto orderDto = OrderDto.builder()
+                .items(List.of())
+                .build();
         when(orderService.getOrder(id, newOrder)).thenReturn(orderDto);
 
         mockMvc.perform(get("/orders/{id}", id)
-                        .param("order", "true"))
+                        .param("newOrder", "true"))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute(ORDER, orderDto))
                 .andExpect(model().attribute("newOrder", true))

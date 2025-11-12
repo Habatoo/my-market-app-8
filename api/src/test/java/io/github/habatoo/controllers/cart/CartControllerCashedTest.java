@@ -3,10 +3,7 @@ package io.github.habatoo.controllers.cart;
 import io.github.habatoo.controllers.CartController;
 import io.github.habatoo.dto.response.CartDto;
 import io.github.habatoo.servicies.CartService;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.*;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -33,6 +30,11 @@ public class CartControllerCashedTest {
         cartService = mock(CartService.class);
         CartController cartController = new CartController(cartService);
         mockMvc = MockMvcBuilders.standaloneSetup(cartController).build();
+    }
+
+    @BeforeEach
+    void setUp() {
+        reset(cartService);
     }
 
     /**

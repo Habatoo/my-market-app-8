@@ -1,18 +1,19 @@
 package io.github.habatoo.controllers.item;
 
 import io.github.habatoo.controllers.ItemController;
+import io.github.habatoo.dto.enums.Sort;
+import io.github.habatoo.dto.request.GetItemsRequestDto;
 import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.dto.response.ItemDtoResponse;
 import io.github.habatoo.dto.response.ItemsDtoResponse;
 import io.github.habatoo.servicies.CartService;
 import io.github.habatoo.servicies.ItemService;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.*;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.servlet.view.InternalResourceViewResolver;
+
+import java.util.List;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -51,6 +52,12 @@ class ItemControllerCashedTest {
                 .build();
     }
 
+    @BeforeEach
+    void setUp() {
+        reset(itemService);
+        reset(cartService);
+    }
+
     /**
      * Тест отображения витрины товаров с фильтрацией/пагинацией и корзиной.
      * Проверяет возврат шаблона и атрибутов модели (товары, корзина, поисковые параметры).
@@ -58,7 +65,9 @@ class ItemControllerCashedTest {
     @Test
     @DisplayName("GET \"/items\" — отображение витрины с параметрами поиска и пагинации")
     void getItemsTest() throws Exception {
-        ItemsDtoResponse itemsDtoResponse = mock(ItemsDtoResponse.class);
+        ItemsDtoResponse itemsDtoResponse = ItemsDtoResponse.builder()
+                .itemsRows(List.of(List.of()))
+                .build();
         when(itemService.getItems(any())).thenReturn(itemsDtoResponse);
 
         mockMvc.perform(get("/items")
@@ -104,7 +113,10 @@ class ItemControllerCashedTest {
     @Test
     @DisplayName("GET \"/items/{id}\" — отображение карточки позиции товара")
     void getItemPageTest() throws Exception {
-        ItemDtoResponse itemDtoResponse = mock(ItemDtoResponse.class);
+        ItemDtoResponse itemDtoResponse = ItemDtoResponse.builder()
+                .cartCount(3)
+                .build();
+
         when(itemService.getItem(anyLong())).thenReturn(itemDtoResponse);
 
         mockMvc.perform(get("/items/33"))
