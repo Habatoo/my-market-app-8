@@ -50,9 +50,9 @@ cd my-market-app-5
 
 2. **Настройка базы Postgres**
 - Параметры по умолчанию:  
-  `DB_NAME=db`  
-  `USER=admin`  
-  `PASSWORD=password`  
+  `DB_NAME=shop_db`  
+  `USER=shop_admin`  
+  `PASSWORD=shop_password`  
   (см. `.env` в папке env)
 
 - Миграции хранятся здесь:  
@@ -65,13 +65,13 @@ docker compose up --build
 - Контейнеры: 
 
 4. **Сборка и деплой бэкенда вручную**
-- В модуле service: 
+- В модуле start:
 ```bash
 ./gradlew bootJar 
 ```
-- Через root: 
+- Через root:
 ```bash
-./gradlew :service:bootJar
+./gradlew :start:bootJar
 ```
 
 5. **Запуск/тесты**
@@ -80,14 +80,22 @@ docker compose up --build
 ./gradlew test
 ```
 - Интеграционные тесты
+```bash
+./gradlew :integrationtests:test
+```
 
----
-
+6. **Отчёты Jacoco**<br>
+   Запуск:
+```bash
+./gradlew clean test jacocoTestReport
+```
 
 ## Доступы и взаимодействие сервисов
 
 ## Более расширенные инструкции
 
-- [Работа с БД](./documentation/database.md)
+- [Работа с БД и миграциями Liquibase](./documentation/database.md)
+- [Руководство по деплою и настройкам](./documentation/deploy.md)
+- [Получение отчетов jacoco](./documentation/database.md)
 
 ---
