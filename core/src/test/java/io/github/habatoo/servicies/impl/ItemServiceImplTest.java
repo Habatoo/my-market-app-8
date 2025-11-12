@@ -185,6 +185,7 @@ class ItemServiceImplTest {
         Item itemB = new Item(2L, "Beta", "descB", "", BigDecimal.valueOf(200), 1);
         Item itemC = new Item(3L, "Gamma", "descC", "", BigDecimal.valueOf(150), 2);
         Item itemD = new Item(4L, "NotMatched", "descAlpha", "", BigDecimal.valueOf(75), 3);
+        Item itemE = new Item(5L, "NoWay", null, "", BigDecimal.valueOf(300), 4);
 
         return Stream.of(
                 Arguments.of(
@@ -276,6 +277,11 @@ class ItemServiceImplTest {
                         GetItemsRequestDto.builder().search(null).sort(Sort.NO).pageSize(3).pageNumber(1).build(),
                         List.of(itemC, itemB, itemA),
                         List.of(itemC, itemB, itemA)
+                ),
+                Arguments.of(
+                        GetItemsRequestDto.builder().search("alpha").sort(null).pageSize(3).pageNumber(1).build(),
+                        List.of(itemE, itemA, itemB),
+                        List.of(itemA)
                 )
         );
     }
