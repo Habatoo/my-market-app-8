@@ -3,6 +3,7 @@ package io.github.habatoo.controllers;
 import io.github.habatoo.dto.response.OrderDto;
 import io.github.habatoo.servicies.OrderService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +17,7 @@ import java.util.List;
  * Контроллер для работы с заказами пользователя.
  * Позволяет просматривать список заказов, а также детальную информацию по каждому заказу.
  */
+@Slf4j
 @Controller
 @RequestMapping("/orders")
 @RequiredArgsConstructor
@@ -35,7 +37,9 @@ public class OrderController {
      */
     @GetMapping
     public String getOrderList(Model model) {
+        log.info("GET /orders — запрос списка заказов пользователя");
         List<OrderDto> orders = orderService.getOrders();
+        log.debug("Получено заказов: {}", orders.size());
         model.addAttribute(ORDERS, orders);
 
         return ORDERS;
@@ -53,9 +57,15 @@ public class OrderController {
     @GetMapping("/{id}")
     public String getOrder(
             @PathVariable Long id,
-            @RequestParam(value = ORDER, required = false, defaultValue = "false") boolean newOrder,
+            @RequestParam(value = "newOrder", required = false, defaultValue = "false") boolean newOrder,
             Model model) {
-        model.addAttribute(ORDER, orderService.getOrder(id, newOrder));
+        log.info("GET /orders/{} — просмотр заказа, newOrder={}", id, newOrder);
+
+        OrderDto order = orderService.getOrder(id, newOrder);
+        log.debug("Получен заказ: id={}, itemsCount={}, totalSum={}",
+                order.id(), order.items() == null ? 0 : order.items().size(), order.totalSum());
+
+        model.addAttribute(ORDER, order);
         model.addAttribute("newOrder", newOrder);
 
         return ORDER;

@@ -13,6 +13,7 @@ import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.CartRepository;
 import io.github.habatoo.repositories.ItemRepository;
 import io.github.habatoo.servicies.CartService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +23,7 @@ import java.math.BigDecimal;
  * Реализация для работы с корзиной.
  * Предоставляет бизнес-логику для операций с товарами в корзине.
  */
+@Slf4j
 @Service
 public class CartServiceImpl implements CartService {
 
@@ -50,8 +52,10 @@ public class CartServiceImpl implements CartService {
     @Transactional
     @Override
     public ItemDto changeNumberOfItems(ChangeNumberOfItemsRequestDto request) {
+        log.debug("Запрошено изменение позиций корзины: request={}", request);
         Cart cart = getCurrentCart();
         Long itemId = request.getId();
+        log.debug("Получение товара с id={}", itemId);
         Item item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new IllegalStateException("Товар с id=%d не найден".formatted(itemId)));
 
@@ -59,7 +63,10 @@ public class CartServiceImpl implements CartService {
                 .filter(ci -> ci.getItem().getId().equals(item.getId()))
                 .findFirst().orElse(null);
 
+        log.debug("Текущий CartItem для товара с id={} найден: {}", itemId, cartItem);
+
         if (cartItem == null && request.getAction() == Action.PLUS) {
+            log.info("Добавление нового товара в корзину: itemId={}", itemId);
             cartItem = new CartItem();
             cartItem.setCart(cart);
             cartItem.setItem(item);
@@ -69,19 +76,25 @@ public class CartServiceImpl implements CartService {
             cartItemRepository.save(cartItem);
         } else if (cartItem != null) {
             int newCount = cartItem.getCount() + (request.getAction() == Action.PLUS ? 1 : -1);
+            log.debug("Обновление количества товара itemId={}, старое={}, новое={}", itemId, cartItem.getCount(), newCount);
             if (newCount > 0) {
                 cartItem.setCount(newCount);
                 cartItemRepository.save(cartItem);
+                log.info("Количество товара обновлено: itemId={}, count={}", itemId, newCount);
             } else {
                 cart.getItems().remove(cartItem);
                 cartItemRepository.delete(cartItem);
+                log.info("Товар удалён из корзины: itemId={}", itemId);
             }
         }
 
         recalculateCartTotal(cart);
+        log.debug("После пересчёта стоимость корзины: cartId={}, total={}", cart.getId(), cart.getTotal());
         cartRepository.save(cart);
 
-        return itemMapper.toDto(item);
+        ItemDto result = itemMapper.toDto(item);
+        log.debug("Возврат DTO товара: {}", result);
+        return result;
     }
 
     /**
@@ -91,6 +104,7 @@ public class CartServiceImpl implements CartService {
     @Override
     public CartDto getItemsInTheCart() {
         Cart cart = getCurrentCart();
+        log.info("Получение содержимого корзины: cartId={}, itemsCount={}", cart.getId(), cart.getItems().size());
         return cartMapper.toDto(cart);
     }
 
@@ -100,20 +114,30 @@ public class CartServiceImpl implements CartService {
     @Transactional
     @Override
     public CartDto changeNumberOfItemsFromCart(ChangeNumberOfItemsRequestDto request) {
+        log.info("Запрошено изменение и получение корзины: request={}", request);
         changeNumberOfItems(request);
-        return getItemsInTheCart();
+        CartDto result = getItemsInTheCart();
+        log.debug("Возврат DTO корзины: {}", result);
+        return result;
     }
 
     private void recalculateCartTotal(Cart cart) {
         BigDecimal total = BigDecimal.ZERO;
         for (CartItem ci : cart.getItems()) {
             total = total.add(ci.getPrice().multiply(BigDecimal.valueOf(ci.getCount())));
+            log.trace("Считаем позицию корзины: itemId={}, price={}, count={}", ci.getItem().getId(), ci.getPrice(), ci.getCount());
         }
         cart.setTotal(total);
+        log.debug("Итого стоимость корзины: {}", total);
     }
 
     private Cart getCurrentCart() {
-        return cartRepository.findAll().stream().findFirst()
-                .orElseGet(() -> cartRepository.save(new Cart()));
+        Cart cart = cartRepository.findAll().stream().findFirst()
+                .orElseGet(() -> {
+                    log.info("Корзина не найдена. Создаём новую корзину.");
+                    return cartRepository.save(new Cart());
+                });
+        log.debug("Используется корзина: cartId={}", cart.getId());
+        return cart;
     }
 }

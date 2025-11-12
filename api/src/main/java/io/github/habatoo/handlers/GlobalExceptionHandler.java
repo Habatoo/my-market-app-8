@@ -22,10 +22,11 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(IllegalArgumentException.class)
     public String handleBadRequest(IllegalArgumentException e, Model model, HttpServletResponse response) {
-        log.warn("Bad request: {}", e.getMessage());
+        log.warn("Bad request [{}]: {}", e.getClass().getSimpleName(), e.getMessage());
         response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
         model.addAttribute("error", "Ошибка в параметрах запроса: " + e.getMessage());
         model.addAttribute("status", 400);
+
         return "error/400";
     }
 
@@ -35,10 +36,11 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(DataAccessException.class)
     public String handleDatabaseError(Exception e, Model model, HttpServletResponse response) {
-        log.error("Ошибка базы данных: {}", e.getMessage(), e);
+        log.error("Ошибка базы данных [{}]: {}", e.getClass().getSimpleName(), e.getMessage(), e);
         response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         model.addAttribute("error", "Ошибка базы данных (БД): " + e.getMessage());
         model.addAttribute("status", 500);
+
         return "error/db";
     }
 
@@ -47,10 +49,11 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(NoHandlerFoundException.class)
     public String handleNotFound(Exception e, Model model, HttpServletResponse response) {
-        log.warn("Страница не найдена: {}", e.getMessage());
+        log.warn("Страница не найдена [{}]: {}", e.getClass().getSimpleName(), e.getMessage());
         response.setStatus(HttpServletResponse.SC_NOT_FOUND);
         model.addAttribute("error", "Страница не найдена или удалена");
         model.addAttribute("status", 404);
+
         return "error/404";
     }
 
@@ -60,10 +63,11 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(IllegalStateException.class)
     public String handleIllegalStateException(IllegalStateException e, Model model, HttpServletResponse response) {
-        log.error("Корзина не найдена: {}", e.getMessage(), e);
+        log.error("Некорректное состояние [{}]: {}", e.getClass().getSimpleName(), e.getMessage(), e);
         response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         model.addAttribute("error", "Корзина не найдена");
         model.addAttribute("status", 500);
+
         return "error/500";
     }
 
@@ -73,11 +77,12 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public String handleGenericException(Exception e, Model model, HttpServletResponse response) {
-        log.error("Внутренняя ошибка сервера: {}", e.getMessage(), e);
+        log.error("Внутренняя ошибка сервера [{}]: {}", e.getClass().getSimpleName(), e.getMessage(), e);
         response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         model.addAttribute("error", "Внутренняя ошибка сервера");
         model.addAttribute("status", 500);
+
         return "error/500";
     }
-
 }
+

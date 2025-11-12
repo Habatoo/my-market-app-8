@@ -1,7 +1,5 @@
 package io.github.habatoo.controllers;
 
-import io.github.habatoo.dto.enums.Action;
-import io.github.habatoo.dto.enums.Sort;
 import io.github.habatoo.dto.request.ChangeNumberOfItemsRequestDto;
 import io.github.habatoo.dto.request.GetItemsRequestDto;
 import io.github.habatoo.dto.response.ItemDtoResponse;
@@ -9,6 +7,7 @@ import io.github.habatoo.dto.response.ItemsDtoResponse;
 import io.github.habatoo.servicies.CartService;
 import io.github.habatoo.servicies.ItemService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
  * Отвечает за обработку запросов по просмотру списка товаров, отдельной позиции,
  * а также изменению количества товаров через корзину или карту товара.
  */
+@Slf4j
 @Controller
 @RequestMapping("/items")
 @RequiredArgsConstructor
@@ -43,7 +43,14 @@ public class ItemController {
     public String getItems(
             @ModelAttribute GetItemsRequestDto req,
             Model model) {
+        log.info("GET /items — запрос каталога товаров, search={}, sort={}, pageSize={}, pageNumber={}",
+                req.getSearch(), req.getSort(), req.getPageSize(), req.getPageNumber());
+
         ItemsDtoResponse items = itemService.getItems(req);
+
+        log.debug("Получено {} товаров, всего отфильтровано: {}",
+                items.itemsRows(), items.paging());
+        log.trace("Paging: {}", items.paging());
 
         model.addAttribute("cart", items.cart());
         model.addAttribute(ITEMS, items.itemsRows());
@@ -64,12 +71,17 @@ public class ItemController {
     @PostMapping
     public String changeNumberOfItems(
             @ModelAttribute ChangeNumberOfItemsRequestDto req) {
+        log.info("POST /items — изменение количества товара из витрины, request={}", req);
+
         cartService.changeNumberOfItems(req);
 
-        return "redirect:/items?search=" + (req.getSearch() == null ? "" : req.getSearch())
+        String redirect = "redirect:/items?search=" + (req.getSearch() == null ? "" : req.getSearch())
                 + "&sort=" + (req.getSort() == null ? "NO" : req.getSort())
                 + "&pageSize=" + (req.getPageSize() == null ? 5 : req.getPageSize())
                 + "&pageNumber=" + (req.getPageNumber() == null ? 1 : req.getPageNumber());
+        log.info("Редирект после изменения: {}", redirect);
+
+        return redirect;
     }
 
     /**
@@ -83,9 +95,12 @@ public class ItemController {
     public String getItemPage(
             @PathVariable("id") Long id,
             Model model) {
+        log.info("GET /items/{} — запрос страницы товара", id);
         ItemDtoResponse item = itemService.getItem(id);
         model.addAttribute(ITEM, item.item());
         model.addAttribute("cartCount", item.cartCount());
+
+        log.debug("Получен товар: id={}, cartCount={}", id, item.cartCount());
 
         return ITEM;
     }
@@ -104,11 +119,14 @@ public class ItemController {
             @PathVariable("id") Long id,
             @ModelAttribute ChangeNumberOfItemsRequestDto req,
             Model model) {
+        log.info("POST /items/{} — изменение количества товара с карточки, request={}", id, req);
         req.setId(id);
         ItemDtoResponse item = itemService.changeNumberOfItemsFromPage(req);
 
         model.addAttribute(ITEM, item.item());
         model.addAttribute("cartCount", item.cartCount());
+
+        log.debug("Товар обновлен: id={}, cartCount={}", id, item.cartCount());
 
         return ITEM;
     }
