@@ -1,0 +1,35 @@
+services:
+  app:
+    container_name: shop-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on: [ db ]
+    env_file: ./env/.env
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    networks:
+      - shop-network
+    volumes:
+      - gradle_cache:/home/gradle/.gradle
+
+  db:
+    image: postgres:17-alpine
+    container_name: shop-db
+    restart: unless-stopped
+    env_file: ./env/.env
+    ports:
+      - "5432:5432"
+    volumes:
+      - shop_db:/var/lib/postgresql/data
+    networks:
+      - shop-network
+
+volumes:
+  shop_db:
+  gradle_cache:
+
+networks:
+  shop-network:
+    driver: bridge

@@ -46,9 +46,9 @@ docker compose up -d --build
 ```
 
 - Логирование
-Для просмотра логов используйте:
+Для просмотра логов:
 ```bash
-docker compose logs -f my-blog-backend
+docker compose logs -f app
 ```
 Это поможет убедиться, что сервисы запустились без ошибок.
 
@@ -57,9 +57,9 @@ docker compose logs -f my-blog-backend
 Подключитесь к контейнеру с базой данных командой:
 
 ```bash
-docker exec -it blog_db_con psql -U blog_admin -d blog_db
+docker exec -it shop-db psql -U shop_admin -d shop_db
 ```
-где shop_db_con — имя вашего контейнера, shop_admin — пользователь БД, shop_db — база данных.
+где shop-db — имя контейнера, shop_admin — пользователь БД, shop_db — база данных.
 
 После подключения в интерактивной оболочке psql выполните команду для просмотра всех таблиц:
 ```sql

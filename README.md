@@ -25,11 +25,10 @@ my-market-app/              # ROOT проекта
 ├── gradle/                 # Wrapper
 ├── integrationtests /      # Интеграционные тесты по проекту
 ├── report /                # JacocoReport для генерации отчетеа jacoco в многомодульном проекте
-├── start /                 # Application - @SpringBootApplication
+├── start /                 # Application - @SpringBootApplication -jar
 │ └── db/changelog/         # Миграции Liquibase
-├── Dockerfilel
 ├── docker-compose.yml      # Главный файл оркестрации Docker сервисов
-├── .env                    # Переменные среды (НЕ храните в репозитории)
+├── Dockerfilel
 ├── README.md
 ```
 ---
