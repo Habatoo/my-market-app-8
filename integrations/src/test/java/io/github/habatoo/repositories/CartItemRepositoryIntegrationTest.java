@@ -15,6 +15,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Интеграционные тесты для CartItemRepository.
@@ -129,5 +131,26 @@ class CartItemRepositoryIntegrationTest extends BaseTest {
         cartItemRepository.deleteById(cartItem.getId());
         Optional<CartItem> deleted = cartItemRepository.findById(cartItem.getId());
         assertThat(deleted).isEmpty();
+    }
+
+    @Test
+    @DisplayName("findCountByCartIdAndItemId возвращает количество для пары cartId/itemId")
+    void whenCartItemExists_returnsCount() {
+        Integer expectedCount = 8;
+        Cart cart = createAndSaveCart(BigDecimal.TEN);
+        Item item = createAndSaveItem("CartBindItem", BigDecimal.TEN);
+        createAndSaveCartItem(cart, item, expectedCount, BigDecimal.TEN);
+
+        Integer count = cartItemRepository.findCountByCartIdAndItemId(cart.getId(), item.getId());
+
+        assertEquals(expectedCount, count);
+    }
+
+    @Test
+    @DisplayName("findCountByCartIdAndItemId возвращает null если нет записи")
+    void whenCartItemNotExists_returnsNull() {
+        Integer count = cartItemRepository.findCountByCartIdAndItemId(-123L, -456L);
+
+        assertNull(count);
     }
 }

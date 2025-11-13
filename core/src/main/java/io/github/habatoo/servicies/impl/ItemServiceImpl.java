@@ -165,7 +165,7 @@ public class ItemServiceImpl implements ItemService {
         ItemDto item = cartService.changeNumberOfItems(request);
         CartDto cart = obtainCart();
         Long cartId = cart.id();
-        Integer cartCount = getCartCount(request, cartId);
+        Integer cartCount = getCartCount(cartId, request.getId());
 
         log.info(
                 "Изменение количества товара в корзине: itemId={}, newCount={}",
@@ -177,16 +177,15 @@ public class ItemServiceImpl implements ItemService {
                 .build();
     }
 
-    private Integer getCartCount(ChangeNumberOfItemsRequestDto request, Long cartId) {
-        Integer cartCount = cartItemRepository.findCountByCartIdAndItemId(cartId, request.getId());
+    private Integer getCartCount(Long cartId, Long id) {
+        Integer cartCount = cartItemRepository.findCountByCartIdAndItemId(cartId, id);
         if (cartCount == null) {
             cartCount = 0;
         }
         return cartCount;
     }
 
-
-    private Map<Long, Integer> obtainItemCounts(List<ItemDto> items , Long cartId) {
+    private Map<Long, Integer> obtainItemCounts(List<ItemDto> items, Long cartId) {
         Map<Long, Integer> itemCounts = new HashMap<>();
         for (ItemDto item : items) {
             Integer count = cartItemRepository.findCountByCartIdAndItemId(cartId, item.id());
