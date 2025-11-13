@@ -5,16 +5,14 @@ import io.github.habatoo.dto.request.GetItemsRequestDto;
 import io.github.habatoo.dto.response.*;
 import io.github.habatoo.entity.Item;
 import io.github.habatoo.mappers.ItemMapper;
+import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.ItemRepository;
 import io.github.habatoo.servicies.CartService;
 import io.github.habatoo.servicies.ItemService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -27,14 +25,17 @@ import java.util.stream.IntStream;
 public class ItemServiceImpl implements ItemService {
 
     private final ItemRepository repository;
+    private final CartItemRepository cartItemRepository;
     private final CartService cartService;
     private final ItemMapper mapper;
 
     public ItemServiceImpl(
             ItemRepository repository,
+            CartItemRepository cartItemRepository,
             CartService cartService,
             ItemMapper mapper) {
         this.repository = repository;
+        this.cartItemRepository = cartItemRepository;
         this.cartService = cartService;
         this.mapper = mapper;
     }
@@ -102,6 +103,8 @@ public class ItemServiceImpl implements ItemService {
                 "Корзина получена: cartId={}, товаров в корзине={}",
                 cart.id(), cart.items().size());
 
+        Map<Long, Integer> itemCounts = obtainItemCounts(items, cart.id());
+
         Paging paging = Paging.builder()
                 .total(filtered.size())
                 .pageSize(pageSize)
@@ -116,6 +119,7 @@ public class ItemServiceImpl implements ItemService {
                 .itemsRows(itemsRows)
                 .cart(cart)
                 .paging(paging)
+                .itemCounts(itemCounts)
                 .build();
 
         log.info(
@@ -137,7 +141,11 @@ public class ItemServiceImpl implements ItemService {
                     return new IllegalStateException("Товар с id=%d не найден".formatted(id));
                 });
         CartDto cart = obtainCart();
-        Integer cartCount = cart.getCountByItemId(id);
+        Long cartId = cart.id();
+        Integer cartCount = cartItemRepository.findCountByCartIdAndItemId(cartId, id);
+        if (cartCount == null) {
+            cartCount = 0;
+        }
 
         log.info("Товар получен: id={}, в корзине={}", id, cartCount);
 
@@ -156,7 +164,8 @@ public class ItemServiceImpl implements ItemService {
 
         ItemDto item = cartService.changeNumberOfItems(request);
         CartDto cart = obtainCart();
-        Integer cartCount = cart.getCountByItemId(request.getId());
+        Long cartId = cart.id();
+        Integer cartCount = getCartCount(request, cartId);
 
         log.info(
                 "Изменение количества товара в корзине: itemId={}, newCount={}",
@@ -166,6 +175,25 @@ public class ItemServiceImpl implements ItemService {
                 .item(item)
                 .cartCount(cartCount)
                 .build();
+    }
+
+    private Integer getCartCount(ChangeNumberOfItemsRequestDto request, Long cartId) {
+        Integer cartCount = cartItemRepository.findCountByCartIdAndItemId(cartId, request.getId());
+        if (cartCount == null) {
+            cartCount = 0;
+        }
+        return cartCount;
+    }
+
+
+    private Map<Long, Integer> obtainItemCounts(List<ItemDto> items , Long cartId) {
+        Map<Long, Integer> itemCounts = new HashMap<>();
+        for (ItemDto item : items) {
+            Integer count = cartItemRepository.findCountByCartIdAndItemId(cartId, item.id());
+            itemCounts.put(item.id(), count == null ? 0 : count);
+        }
+
+        return itemCounts;
     }
 
     private List<List<ItemDto>> splitByRows(List<ItemDto> items, int rowSize) {

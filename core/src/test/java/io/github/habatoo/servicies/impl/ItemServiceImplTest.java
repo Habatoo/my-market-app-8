@@ -10,6 +10,7 @@ import io.github.habatoo.dto.response.ItemDtoResponse;
 import io.github.habatoo.dto.response.ItemsDtoResponse;
 import io.github.habatoo.entity.Item;
 import io.github.habatoo.mappers.ItemMapper;
+import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.ItemRepository;
 import io.github.habatoo.servicies.CartService;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,6 +20,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -28,9 +31,8 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Параметризованные unit-тесты для ItemServiceImpl.
@@ -44,6 +46,8 @@ class ItemServiceImplTest {
     @Mock
     private ItemRepository repository;
     @Mock
+    private CartItemRepository cartItemRepository;
+    @Mock
     private CartService cartService;
     @Mock
     private ItemMapper mapper;
@@ -52,7 +56,7 @@ class ItemServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new ItemServiceImpl(repository, cartService, mapper);
+        service = new ItemServiceImpl(repository, cartItemRepository, cartService, mapper);
     }
 
     /**
@@ -60,7 +64,7 @@ class ItemServiceImplTest {
      */
     @ParameterizedTest
     @MethodSource("itemsSearchCases")
-    @DisplayName("Поиск, сортировка, пагинация витрины")
+    @DisplayName("Поиск, сортировка, пагинация витрины с itemCounts")
     void getItemsVariants(GetItemsRequestDto req, List<Item> all, List<Item> expectedPage) {
         when(repository.findAll()).thenReturn(all);
         when(mapper.toDto(anyList())).thenAnswer(inv -> {
@@ -75,6 +79,11 @@ class ItemServiceImplTest {
             throw new IllegalArgumentException("Argument for toDto is not a List<Item>");
         });
         CartDto cart = mock(CartDto.class);
+        when(cartService.getItemsInTheCart()).thenReturn(cart);
+
+        if (req.getSearch() == null) {
+            lenient().when(cartItemRepository.findCountByCartIdAndItemId(any(), any())).thenReturn(null);
+        }
         when(cartService.getItemsInTheCart()).thenReturn(cart);
 
         ItemsDtoResponse response = service.getItems(req);
@@ -132,20 +141,22 @@ class ItemServiceImplTest {
     /**
      * Тест получения отдельного товара — товар найден.
      */
-    @Test
-    @DisplayName("Получение отдельного товара — товар найден")
-    void getItemFoundTest() {
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(ints = {2, 0})
+    @DisplayName("Получение отдельного товара — товар найден с разными cartCount")
+    void getItemFoundTest(Integer ans) {
         Item item = new Item(5L, "A", null, "", BigDecimal.ONE, 0);
         when(repository.findById(5L)).thenReturn(Optional.of(item));
         when(mapper.toDto(item)).thenReturn(new ItemDto(5L, "A", null, "", BigDecimal.ONE, 0));
 
         CartDto cart = mock(CartDto.class);
-        when(cart.getCountByItemId(5L)).thenReturn(2);
+        when(cartItemRepository.findCountByCartIdAndItemId(any(), eq(item.getId()))).thenReturn(ans);
         when(cartService.getItemsInTheCart()).thenReturn(cart);
 
         ItemDtoResponse resp = service.getItem(5L);
 
-        assertEquals(2, resp.cartCount());
+        assertEquals(ans == null ? 0 : ans, resp.cartCount());
         assertEquals(5L, resp.item().id());
     }
 
@@ -163,21 +174,23 @@ class ItemServiceImplTest {
     /**
      * Тест изменения количества товара — вызов CartService и возврат актуального количества.
      */
-    @Test
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(ints = {4, 0})
     @DisplayName("Изменение количества товара из карточки")
-    void changeNumberOfItemsFromPageTest() {
+    void changeNumberOfItemsFromPageTest(Integer ans) {
         ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder().id(23L).action(Action.PLUS).build();
         ItemDto itemDto = mock(ItemDto.class);
         CartDto cartDto = mock(CartDto.class);
 
         when(cartService.changeNumberOfItems(req)).thenReturn(itemDto);
         when(cartService.getItemsInTheCart()).thenReturn(cartDto);
-        when(cartDto.getCountByItemId(23L)).thenReturn(4);
+        when(cartItemRepository.findCountByCartIdAndItemId(any(), eq(23L))).thenReturn(ans);
 
         ItemDtoResponse resp = service.changeNumberOfItemsFromPage(req);
 
         assertEquals(itemDto, resp.item());
-        assertEquals(4, resp.cartCount());
+        assertEquals(ans == null ? 0 : ans, resp.cartCount());
     }
 
     static Stream<Arguments> itemsSearchCases() {
@@ -185,7 +198,7 @@ class ItemServiceImplTest {
         Item itemB = new Item(2L, "Beta", "descB", "", BigDecimal.valueOf(200), 1);
         Item itemC = new Item(3L, "Gamma", "descC", "", BigDecimal.valueOf(150), 2);
         Item itemD = new Item(4L, "NotMatched", "descAlpha", "", BigDecimal.valueOf(75), 3);
-        Item itemE = new Item(5L, "NoWay", null, "", BigDecimal.valueOf(300), 4);
+        Item itemE = new Item(5L, "NoWay", null, "", BigDecimal.valueOf(300), null);
 
         return Stream.of(
                 Arguments.of(

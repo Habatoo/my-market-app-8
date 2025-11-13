@@ -21,13 +21,4 @@ public record CartDto(
     public CartDto {
         if (items == null) items = List.of();
     }
-
-    public Integer getCountByItemId(Long itemId) {
-        return items == null ? 0 :
-                items.stream()
-                        .filter(ci -> ci.item().id().equals(itemId))
-                        .map(CartItemDto::count)
-                        .findFirst()
-                        .orElse(0);
-    }
 }

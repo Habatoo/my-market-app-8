@@ -57,6 +57,7 @@ public class ItemController {
         model.addAttribute("search", req.getSearch() == null ? "" : req.getSearch());
         model.addAttribute("sort", req.getSort());
         model.addAttribute("paging", items.paging());
+        model.addAttribute("itemCounts", items.itemCounts());
 
         return ITEMS;
     }

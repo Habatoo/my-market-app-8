@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -49,8 +50,10 @@ class ItemControllerWebMvcIntegrationTest {
     @DisplayName("GET /items — витрина товаров с фильтрами, корректный model и view")
     void getItemsListTest() throws Exception {
         GetItemsRequestDto req = GetItemsRequestDto.builder().search("test").sort(Sort.ALPHA).pageSize(10).pageNumber(2).build();
+        Map<Long, Integer> itemCounts = Map.of(1L, 1);
         ItemsDtoResponse itemsDto = ItemsDtoResponse.builder()
                 .itemsRows(List.of(List.of(new ItemDto(1L, "A", "desc", "", BigDecimal.ONE, 1))))
+                .itemCounts(itemCounts)
                 .cart(mock(CartDto.class)).paging(mock(Paging.class)).build();
 
         when(itemService.getItems(any(GetItemsRequestDto.class))).thenReturn(itemsDto);
@@ -63,6 +66,7 @@ class ItemControllerWebMvcIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(model().attributeExists("cart"))
                 .andExpect(model().attributeExists("items"))
+                .andExpect(model().attributeExists("itemCounts"))
                 .andExpect(model().attribute("search", "test"))
                 .andExpect(model().attribute("sort", Sort.ALPHA))
                 .andExpect(model().attributeExists("paging"))

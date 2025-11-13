@@ -100,7 +100,7 @@ public class CartServiceImpl implements CartService {
     /**
      * {@inheritDoc}
      */
-    @Transactional(readOnly = true)
+    @Transactional
     @Override
     public CartDto getItemsInTheCart() {
         Cart cart = getCurrentCart();
