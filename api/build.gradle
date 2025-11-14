@@ -1,7 +1,12 @@
 plugins {
     id 'java'
+    id 'jacoco'
     id 'java-library'
     id 'io.spring.dependency-management' version '1.1.7'
+}
+
+jacoco {
+    toolVersion = '0.8.11'
 }
 
 dependencyManagement {
@@ -18,8 +23,14 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter'
     annotationProcessor 'org.springframework.boot:spring-boot-autoconfigure-processor'
 
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 jar {

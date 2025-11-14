@@ -1,0 +1,20 @@
+spring:
+  datasource:
+    url: jdbc:tc:postgresql:16-alpine:///test
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  liquibase:
+    enabled: true
+    change-log: classpath:/db/changelog/db.changelog-master.yaml
+  web:
+    cors:
+      path-pattern: "/api/**"
+      allowed-origin-patterns:
+        - "http://localhost"
+        - "http://127.0.0.1"
+      allowed-methods: [GET, POST, PUT, DELETE, OPTIONS]
+      allowed-headers: "*"
+      allow-credentials: true
+      max-age: 3600

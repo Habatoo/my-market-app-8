@@ -1,0 +1,12 @@
+databaseChangeLog:
+  - changeSet:
+      id: init-structure
+      author: habatoo
+      context: dev,test
+      dbms: postgresql
+      changes:
+        - sqlFile:
+            path: db/changelog/scripts/003_fill_data.sql
+      rollback:
+        - sqlFile:
+            path: db/changelog/scripts/004_rollback_data.sql

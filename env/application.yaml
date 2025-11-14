@@ -1,0 +1,30 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_DB_USERNAME}
+    password: ${SPRING_DATASOURCE_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 30000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  web:
+    cors:
+      path-pattern: "/api/**"
+      allowed-origin-patterns:
+        - "http://localhost"
+        - "http://127.0.0.1"
+      allowed-methods: [ GET, POST, PUT, DELETE, OPTIONS ]
+      allowed-headers: "*"
+      allow-credentials: true
+      max-age: 3600
+
+liquibase:
+  enabled: true
+  driver-class-name: org.postgresql.Driver
+  url: ${SPRING_DATASOURCE_URL}
+  username: ${SPRING_DATASOURCE_DB_USERNAME}
+  password: ${SPRING_DATASOURCE_DB_PASSWORD}
+  context: prod
