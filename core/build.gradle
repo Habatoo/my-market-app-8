@@ -22,6 +22,7 @@ repositories {
 
 dependencies {
     implementation platform(project(':bom'))
+    annotationProcessor platform(project(":bom"))
 
     api 'org.springframework.boot:spring-boot-autoconfigure'
     implementation 'org.springframework.boot:spring-boot-starter'
@@ -32,7 +33,7 @@ dependencies {
     implementation 'org.liquibase:liquibase-core'
 
     implementation 'org.mapstruct:mapstruct'
-    annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+    annotationProcessor 'org.mapstruct:mapstruct-processor'
 
     implementation 'org.springframework.boot:spring-boot-starter-web'
     compileOnly 'org.projectlombok:lombok'
