@@ -1,12 +1,11 @@
 package io.github.habatoo.handlers;
 
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.servlet.NoHandlerFoundException;
+import reactor.core.publisher.Mono;
 
 /**
  * Глобальный перехватчик исключений — для централизованной обработки ошибок в контроллерах.
@@ -21,13 +20,12 @@ public class GlobalExceptionHandler {
      * Возвращает страницу bad-request (400).
      */
     @ExceptionHandler(IllegalArgumentException.class)
-    public String handleBadRequest(IllegalArgumentException e, Model model, HttpServletResponse response) {
+    public Mono<String> handleBadRequest(IllegalArgumentException e, Model model) {
         log.warn("Bad request [{}]: {}", e.getClass().getSimpleName(), e.getMessage());
-        response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
         model.addAttribute("error", "Ошибка в параметрах запроса: " + e.getMessage());
         model.addAttribute("status", 400);
 
-        return "error/400";
+        return Mono.just("error/400");
     }
 
     /**
@@ -35,26 +33,12 @@ public class GlobalExceptionHandler {
      * Возвращает страницу с ошибкой БД.
      */
     @ExceptionHandler(DataAccessException.class)
-    public String handleDatabaseError(Exception e, Model model, HttpServletResponse response) {
+    public Mono<String> handleDatabaseError(Exception e, Model model) {
         log.error("Ошибка базы данных [{}]: {}", e.getClass().getSimpleName(), e.getMessage(), e);
-        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         model.addAttribute("error", "Ошибка базы данных (БД): " + e.getMessage());
         model.addAttribute("status", 500);
 
-        return "error/db";
-    }
-
-    /**
-     * Обработка ошибки "страница не найдена" (404).
-     */
-    @ExceptionHandler(NoHandlerFoundException.class)
-    public String handleNotFound(Exception e, Model model, HttpServletResponse response) {
-        log.warn("Страница не найдена [{}]: {}", e.getClass().getSimpleName(), e.getMessage());
-        response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-        model.addAttribute("error", "Страница не найдена или удалена");
-        model.addAttribute("status", 404);
-
-        return "error/404";
+        return Mono.just("error/db");
     }
 
     /**
@@ -62,13 +46,12 @@ public class GlobalExceptionHandler {
      * Возвращает страницу общей ошибки (500).
      */
     @ExceptionHandler(IllegalStateException.class)
-    public String handleIllegalStateException(IllegalStateException e, Model model, HttpServletResponse response) {
+    public Mono<String> handleIllegalStateException(IllegalStateException e, Model model) {
         log.error("Некорректное состояние [{}]: {}", e.getClass().getSimpleName(), e.getMessage(), e);
-        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         model.addAttribute("error", "Корзина не найдена");
         model.addAttribute("status", 500);
 
-        return "error/500";
+        return Mono.just("error/500");
     }
 
     /**
@@ -76,13 +59,11 @@ public class GlobalExceptionHandler {
      * Возвращает страницу общей ошибки (500).
      */
     @ExceptionHandler(Exception.class)
-    public String handleGenericException(Exception e, Model model, HttpServletResponse response) {
+    public Mono<String> handleGenericException(Exception e, Model model) {
         log.error("Внутренняя ошибка сервера [{}]: {}", e.getClass().getSimpleName(), e.getMessage(), e);
-        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         model.addAttribute("error", "Внутренняя ошибка сервера");
         model.addAttribute("status", 500);
 
-        return "error/500";
+        return Mono.just("error/500");
     }
 }
-
