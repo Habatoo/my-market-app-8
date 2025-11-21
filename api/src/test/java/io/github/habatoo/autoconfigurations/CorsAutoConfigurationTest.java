@@ -6,9 +6,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.web.servlet.config.annotation.CorsRegistration;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.reactive.config.CorsRegistration;
+import org.springframework.web.reactive.config.CorsRegistry;
+import org.springframework.web.reactive.config.WebFluxConfigurer;
 
 import java.util.List;
 
@@ -51,7 +51,7 @@ class CorsAutoConfigurationTest {
     @DisplayName("Автоконфигурация CORS создает бин WebMvcConfigurer и правильно привязывает CorsProperties")
     void testCorsAutoConfigurationCreatesWebMvcConfigurer() {
         contextRunner.run(context -> {
-            WebMvcConfigurer configurer = context.getBean(WebMvcConfigurer.class);
+            WebFluxConfigurer configurer = context.getBean(WebFluxConfigurer.class);
             assertThat(configurer).isNotNull();
 
             CorsProperties corsProps = context.getBean(CorsProperties.class);
@@ -84,7 +84,7 @@ class CorsAutoConfigurationTest {
         when(registration.allowCredentials(eq(true))).thenReturn(registration);
         when(registration.maxAge(eq(3600L))).thenReturn(registration);
 
-        WebMvcConfigurer configurer = new CorsAutoConfiguration().corsWebMvcConfigurer(corsProps);
+        WebFluxConfigurer configurer = new CorsAutoConfiguration().corsWebFluxConfigurer(corsProps);
         configurer.addCorsMappings(registry);
 
         verify(registry).addMapping("/api/**");

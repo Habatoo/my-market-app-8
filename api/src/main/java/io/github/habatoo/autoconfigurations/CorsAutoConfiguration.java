@@ -4,8 +4,8 @@ import io.github.habatoo.properties.CorsProperties;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.reactive.config.CorsRegistry;
+import org.springframework.web.reactive.config.WebFluxConfigurer;
 
 /**
  * Автоматическая конфигурация CORS для доступа к localhost.
@@ -16,8 +16,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class CorsAutoConfiguration {
 
     @Bean
-    public WebMvcConfigurer corsWebMvcConfigurer(CorsProperties corsProperties) {
-        return new WebMvcConfigurer() {
+    public WebFluxConfigurer corsWebFluxConfigurer(CorsProperties corsProperties) {
+        return new WebFluxConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping(corsProperties.pathPattern())
