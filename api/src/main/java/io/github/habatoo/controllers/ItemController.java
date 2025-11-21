@@ -2,15 +2,15 @@ package io.github.habatoo.controllers;
 
 import io.github.habatoo.dto.request.ChangeNumberOfItemsRequestDto;
 import io.github.habatoo.dto.request.GetItemsRequestDto;
-import io.github.habatoo.dto.response.ItemDtoResponse;
-import io.github.habatoo.dto.response.ItemsDtoResponse;
 import io.github.habatoo.servicies.CartService;
 import io.github.habatoo.servicies.ItemService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 /**
  * Контроллер витрины магазина.
@@ -27,6 +27,8 @@ public class ItemController {
 
     private static final String ITEM = "item";
 
+    private static final String NOT_FOUND = "404";
+
     private final ItemService itemService;
 
     private final CartService cartService;
@@ -40,26 +42,27 @@ public class ItemController {
      * @return имя шаблона списка товаров
      */
     @GetMapping
-    public String getItems(
+    public Mono<String> getItems(
             @ModelAttribute GetItemsRequestDto req,
-            Model model) {
+            Model model
+    ) {
         log.info("GET /items — запрос каталога товаров, search={}, sort={}, pageSize={}, pageNumber={}",
                 req.getSearch(), req.getSort(), req.getPageSize(), req.getPageNumber());
 
-        ItemsDtoResponse items = itemService.getItems(req);
+        return itemService.getItems(req)
+                .map(items -> {
+                    log.debug("Получено {} строк товаров, paging={}",
+                            items.itemsRows().size(), items.paging());
 
-        log.debug("Получено {} товаров, всего отфильтровано: {}",
-                items.itemsRows(), items.paging());
-        log.trace("Paging: {}", items.paging());
+                    model.addAttribute("cart", items.cart());
+                    model.addAttribute(ITEMS, items.itemsRows());
+                    model.addAttribute("search", req.getSearch() == null ? "" : req.getSearch());
+                    model.addAttribute("sort", req.getSort());
+                    model.addAttribute("paging", items.paging());
+                    model.addAttribute("itemCounts", items.itemCounts());
 
-        model.addAttribute("cart", items.cart());
-        model.addAttribute(ITEMS, items.itemsRows());
-        model.addAttribute("search", req.getSearch() == null ? "" : req.getSearch());
-        model.addAttribute("sort", req.getSort());
-        model.addAttribute("paging", items.paging());
-        model.addAttribute("itemCounts", items.itemCounts());
-
-        return ITEMS;
+                    return ITEMS;
+                });
     }
 
     /**
@@ -70,11 +73,16 @@ public class ItemController {
      * @return redirect на витрину товаров с актуальными фильтрами
      */
     @PostMapping
-    public String changeNumberOfItems(
-            @ModelAttribute ChangeNumberOfItemsRequestDto req) {
+    public Mono<String> changeNumberOfItems(
+            @ModelAttribute ChangeNumberOfItemsRequestDto req,
+            BindingResult bindingResult) {
         log.info("POST /items — изменение количества товара из витрины, request={}", req);
 
-        cartService.changeNumberOfItems(req);
+        if (bindingResult.hasErrors()) {
+            log.warn("Редирект после ошибки");
+
+            return Mono.just("redirect:/items");
+        }
 
         String redirect = "redirect:/items?search=" + (req.getSearch() == null ? "" : req.getSearch())
                 + "&sort=" + (req.getSort() == null ? "NO" : req.getSort())
@@ -82,7 +90,8 @@ public class ItemController {
                 + "&pageNumber=" + (req.getPageNumber() == null ? 1 : req.getPageNumber());
         log.info("Редирект после изменения: {}", redirect);
 
-        return redirect;
+        return cartService.changeNumberOfItems(req)
+                .map(itemDto -> redirect);
     }
 
     /**
@@ -93,17 +102,16 @@ public class ItemController {
      * @return имя шаблона отдельного товара
      */
     @GetMapping("/{id}")
-    public String getItemPage(
+    public Mono<String> getItemPage(
             @PathVariable("id") Long id,
             Model model) {
         log.info("GET /items/{} — запрос страницы товара", id);
-        ItemDtoResponse item = itemService.getItem(id);
-        model.addAttribute(ITEM, item.item());
-        model.addAttribute("cartCount", item.cartCount());
 
-        log.debug("Получен товар: id={}, cartCount={}", id, item.cartCount());
-
-        return ITEM;
+        return itemService.getItem(id)
+                .doOnNext(item -> model.addAttribute(ITEM, item.item()))
+                .doOnNext(item -> model.addAttribute("cartCount", item.cartCount()))
+                .map(item -> ITEM)
+                .defaultIfEmpty(NOT_FOUND);
     }
 
     /**
@@ -116,19 +124,17 @@ public class ItemController {
      * @return имя шаблона отдельного товара
      */
     @PostMapping("/{id}")
-    public String changeItemFromItemPage(
+    public Mono<String> changeItemFromItemPage(
             @PathVariable("id") Long id,
             @ModelAttribute ChangeNumberOfItemsRequestDto req,
             Model model) {
         log.info("POST /items/{} — изменение количества товара с карточки, request={}", id, req);
         req.setId(id);
-        ItemDtoResponse item = itemService.changeNumberOfItemsFromPage(req);
 
-        model.addAttribute(ITEM, item.item());
-        model.addAttribute("cartCount", item.cartCount());
-
-        log.debug("Товар обновлен: id={}, cartCount={}", id, item.cartCount());
-
-        return ITEM;
+        return itemService.changeNumberOfItemsFromPage(req)
+                .doOnNext(item -> model.addAttribute(ITEM, item))
+                .doOnNext(item -> model.addAttribute("cartCount", item.cartCount()))
+                .map(item -> ITEM)
+                .defaultIfEmpty(NOT_FOUND);
     }
 }

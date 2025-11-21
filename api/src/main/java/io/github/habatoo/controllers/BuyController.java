@@ -1,6 +1,5 @@
 package io.github.habatoo.controllers;
 
-import io.github.habatoo.dto.response.CartDto;
 import io.github.habatoo.dto.response.OrderDto;
 import io.github.habatoo.servicies.BuyService;
 import io.github.habatoo.servicies.CartService;
@@ -10,9 +9,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import reactor.core.publisher.Mono;
 
 import java.util.Comparator;
-import java.util.Optional;
 
 /**
  * Контроллер, отвечающий за оформление покупки товара из корзины пользователем.
@@ -37,22 +36,24 @@ public class BuyController {
      * @return redirect на страницу заказов с флагом нового заказа (если создан)
      */
     @PostMapping
-    public String buy() {
+    public Mono<String> buy() {
         log.info("POST /buy — старт процедуры покупки");
 
-        CartDto cart = cartService.getItemsInTheCart();
-        log.debug("Корзина для покупки: cartId={}, itemsCount={}", cart.id(), cart.items().size());
-
-        buyService.buy(cart.id());
-        log.info("Покупка совершена для корзины id={}", cart.id());
-
-        Optional<OrderDto> latestOrder = orderService.getOrders().stream()
-                .max(Comparator.comparing(OrderDto::dateTime));
-        String redirectUrl = latestOrder
-                .map(order -> REDIRECT_ORDERS + order.id() + "?newOrder=true")
-                .orElse(REDIRECT_ORDERS);
-        log.info("Редирект после покупки: {}", redirectUrl);
-
-        return redirectUrl;
+        return cartService.getItemsInTheCart()
+                .doOnNext(cart -> log.debug("Корзина для покупки: cartId={}, itemsCount={}",
+                        cart.id(), cart.items().size()))
+                .flatMap(cart ->
+                        Mono.fromRunnable(() -> buyService.buy(cart.id()))
+                                .thenReturn(cart)
+                                .doOnNext(c -> log.info("Покупка совершена для корзины id={}", c.id()))
+                )
+                .flatMap(cart ->
+                        orderService.getOrders()
+                                .sort(Comparator.comparing(OrderDto::dateTime))
+                                .takeLast(1).singleOrEmpty()
+                                .map(order -> REDIRECT_ORDERS + order.id() + "?newOrder=true")
+                                .defaultIfEmpty(REDIRECT_ORDERS)
+                )
+                .doOnNext(redirect -> log.info("Редирект после покупки: {}", redirect));
     }
 }
