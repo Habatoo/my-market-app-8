@@ -8,9 +8,10 @@ import io.github.habatoo.servicies.OrderService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Реализация для работы с заказами.
@@ -34,17 +35,20 @@ public class OrderServiceImpl implements OrderService {
      */
     @Transactional(readOnly = true)
     @Override
-    public List<OrderDto> getOrders() {
+    public Flux<OrderDto> getOrders() {
         log.debug("Запрашивается список всех заказов");
+
         List<Order> orders = orderRepository.findAll();
+
         log.info("Найдено заказов: {}", orders.size());
 
         List<OrderDto> dtos = orders.stream()
                 .map(mapper::toDto)
-                .collect(Collectors.toList());
+                .toList();
+
         log.debug("Возврат списка DTO заказов, всего: {}", dtos.size());
 
-        return dtos;
+        return Flux.fromIterable(dtos);
     }
 
     /**
@@ -52,17 +56,23 @@ public class OrderServiceImpl implements OrderService {
      */
     @Transactional(readOnly = true)
     @Override
-    public OrderDto getOrder(Long id, boolean newOrder) {
+    public Mono<OrderDto> getOrder(Long id, boolean newOrder) {
         log.debug("Запрошен заказ по id={}, newOrder={}", id, newOrder);
-        return orderRepository.findById(id)
+
+        OrderDto orderDto = orderRepository.findById(id)
                 .map(order -> {
                     OrderDto dto = mapper.toDto(order);
+
                     log.info("Заказ найден и преобразован: orderId={}, totalSum={}", dto.id(), dto.totalSum());
+
                     return dto;
                 })
                 .orElseThrow(() -> {
                     log.error("Заказ с id={} не найден", id);
+
                     return new IllegalStateException("Заказ с id=%d не найден".formatted(id));
                 });
+
+        return Mono.just(orderDto);
     }
 }

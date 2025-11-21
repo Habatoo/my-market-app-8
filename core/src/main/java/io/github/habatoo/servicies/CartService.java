@@ -3,6 +3,7 @@ package io.github.habatoo.servicies;
 import io.github.habatoo.dto.request.ChangeNumberOfItemsRequestDto;
 import io.github.habatoo.dto.response.CartDto;
 import io.github.habatoo.dto.response.ItemDto;
+import reactor.core.publisher.Mono;
 
 /**
  * Интерфейс для работы с корзиной.
@@ -18,7 +19,7 @@ public interface CartService {
      * @param request запрос на изменение количества товара
      * @return объект с товаром ItemDto
      */
-    ItemDto changeNumberOfItems(ChangeNumberOfItemsRequestDto request);
+    Mono<ItemDto> changeNumberOfItems(ChangeNumberOfItemsRequestDto request);
 
     /**
      * Эндпоинт получения страницы со списком товаров в корзине
@@ -26,7 +27,7 @@ public interface CartService {
      *
      * @return объект корзины с товаром CartDto
      */
-    CartDto getItemsInTheCart();
+    Mono<CartDto> getItemsInTheCart();
 
     /**
      * Эндпоинт уменьшения/увеличения количества товара в корзине со страницы корзины
@@ -35,5 +36,5 @@ public interface CartService {
      * @param request запрос на изменение количества товара
      * @return объект корзины с товаром CartDto
      */
-    CartDto changeNumberOfItemsFromCart(ChangeNumberOfItemsRequestDto request);
+    Mono<CartDto> changeNumberOfItemsFromCart(ChangeNumberOfItemsRequestDto request);
 }

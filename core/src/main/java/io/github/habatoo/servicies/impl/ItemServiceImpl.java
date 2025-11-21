@@ -11,6 +11,8 @@ import io.github.habatoo.servicies.CartService;
 import io.github.habatoo.servicies.ItemService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -44,137 +46,95 @@ public class ItemServiceImpl implements ItemService {
      * {@inheritDoc}
      */
     @Override
-    public ItemsDtoResponse getItems(GetItemsRequestDto request) {
+    public Mono<ItemsDtoResponse> getItems(GetItemsRequestDto request) {
         log.debug("Запрошено получение товаров: request={}", request);
 
-        List<Item> all = repository.findAll();
-        log.info("Всего товаров в репозитории: {}", all.size());
+        Mono<CartDto> cartMono = obtainCart();
 
-        List<Item> filtered = all;
-        if (request.getSearch() != null && !request.getSearch().isBlank()) {
-            String lower = request.getSearch().trim().toLowerCase();
-            log.debug("Поиск по строке: '{}'", lower);
-            filtered = filtered.stream()
-                    .filter(i -> i.getTitle().toLowerCase().contains(lower)
-                            || (i.getDescription() != null && i.getDescription().toLowerCase().contains(lower)))
-                    .toList();
-            log.info("Найдено товаров после фильтрации: {}", filtered.size());
-        }
+        return Mono.fromCallable(repository::findAll)
+                .subscribeOn(Schedulers.boundedElastic())
+                .flatMap(all -> {
 
-        if (request.getSort() != null) {
-            log.debug("Сортировка: {}", request.getSort());
-            switch (request.getSort()) {
-                case ALPHA -> {
-                    filtered = filtered.stream()
-                            .sorted(Comparator.comparing(Item::getTitle)).toList();
-                    log.debug("Сортировка ALPHA выполнена");
-                }
-                case PRICE -> {
-                    filtered = filtered.stream()
-                            .sorted(Comparator.comparing(Item::getPrice)).toList();
-                    log.debug("Сортировка PRICE выполнена");
-                }
-                default -> log.debug("Неизвестный тип сортировки: {}", request.getSort());
-            }
-        }
+                    List<Item> filtered = all;
+                    if (request.getSearch() != null && !request.getSearch().isBlank()) {
+                        filtered = getFiltered(request, filtered);
+                    }
 
-        int pageSize = request.getPageSize() != null ? request.getPageSize() : 5;
-        int pageNumber = request.getPageNumber() != null ? request.getPageNumber() : 1;
-        int from = (pageNumber - 1) * pageSize;
-        int to = Math.min(from + pageSize, filtered.size());
+                    if (request.getSort() != null) {
+                        filtered = getItemList(request, filtered);
+                    }
 
-        log.debug(
-                "Пагинация: pageNumber={}, pageSize={}, from={}, to={}",
-                pageNumber, pageSize, from, to);
+                    Result result = getResult(request, filtered);
 
-        List<Item> page = from < filtered.size() ? filtered.subList(from, to) : Collections.emptyList();
-        log.info("Товаров на странице: {}", page.size());
+                    return cartMono.map(cart -> {
+                        Map<Long, Integer> itemCounts = obtainItemCounts(result.items(), cart.id());
 
-        List<ItemDto> items = mapper.toDto(page);
-        log.debug("Преобразование товаров в DTO выполнено");
-
-        List<List<ItemDto>> itemsRows = splitByRows(items, 3);
-        log.trace(
-                "Формирование строк товаров для фронта завершено, строк: {}",
-                itemsRows.size());
-
-        CartDto cart = obtainCart();
-        log.debug(
-                "Корзина получена: cartId={}, товаров в корзине={}",
-                cart.id(), cart.items().size());
-
-        Map<Long, Integer> itemCounts = obtainItemCounts(items, cart.id());
-
-        Paging paging = Paging.builder()
-                .total(filtered.size())
-                .pageSize(pageSize)
-                .pageNumber(pageNumber)
-                .hasPrevious(pageNumber > 1)
-                .hasNext(pageNumber * pageSize < filtered.size())
-                .build();
-
-        log.debug("Paging info: {}", paging);
-
-        ItemsDtoResponse response = ItemsDtoResponse.builder()
-                .itemsRows(itemsRows)
-                .cart(cart)
-                .paging(paging)
-                .itemCounts(itemCounts)
-                .build();
-
-        log.info(
-                "Подготовлен ответ на запрос товаров: itemsRows={}, totalFiltered={}",
-                itemsRows.size(), filtered.size());
-        return response;
+                        return ItemsDtoResponse.builder()
+                                .itemsRows(result.itemsRows())
+                                .cart(cart)
+                                .paging(result.paging())
+                                .itemCounts(itemCounts)
+                                .build();
+                    });
+                });
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public ItemDtoResponse getItem(Long id) {
+    public Mono<ItemDtoResponse> getItem(Long id) {
         log.debug("Запрошено получение товара по id={}", id);
+
         ItemDto item = repository.findById(id)
                 .map(mapper::toDto)
                 .orElseThrow(() -> {
                     log.error("Товар с id={} не найден", id);
+
                     return new IllegalStateException("Товар с id=%d не найден".formatted(id));
                 });
-        CartDto cart = obtainCart();
-        Long cartId = cart.id();
-        Integer cartCount = cartItemRepository.findCountByCartIdAndItemId(cartId, id);
-        if (cartCount == null) {
-            cartCount = 0;
-        }
+        Mono<CartDto> cartMono = obtainCart();
 
-        log.info("Товар получен: id={}, в корзине={}", id, cartCount);
+        return cartMono.map(cart -> {
+                    Long cartId = cart.id();
+                    Integer cartCount = cartItemRepository.findCountByCartIdAndItemId(cartId, id);
 
-        return ItemDtoResponse.builder()
-                .item(item)
-                .cartCount(cartCount)
-                .build();
+                    if (cartCount == null) {
+                        cartCount = 0;
+                    }
+
+                    log.info("Товар получен: id={}, в корзине={}", id, cartCount);
+
+                    return ItemDtoResponse.builder()
+                            .item(item)
+                            .cartCount(cartCount)
+                            .build();
+                }
+        );
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public ItemDtoResponse changeNumberOfItemsFromPage(ChangeNumberOfItemsRequestDto request) {
+    public Mono<ItemDtoResponse> changeNumberOfItemsFromPage(ChangeNumberOfItemsRequestDto request) {
         log.debug("Запрошено изменение товаров из страницы: request={}", request);
 
-        ItemDto item = cartService.changeNumberOfItems(request);
-        CartDto cart = obtainCart();
-        Long cartId = cart.id();
-        Integer cartCount = getCartCount(cartId, request.getId());
+        Mono<CartDto> cartMono = obtainCart();
 
-        log.info(
-                "Изменение количества товара в корзине: itemId={}, newCount={}",
-                request.getId(), cartCount);
+        return cartService.changeNumberOfItems(request)
+                .flatMap(item -> cartMono.map(cart -> {
+                    Long cartId = cart.id();
+                    Integer cartCount = getCartCount(cartId, request.getId());
 
-        return ItemDtoResponse.builder()
-                .item(item)
-                .cartCount(cartCount)
-                .build();
+                    log.info("Изменение количества товара в корзине: itemId={}, newCount={}",
+                            request.getId(), cartCount);
+
+                    return ItemDtoResponse.builder()
+                            .item(item)
+                            .cartCount(cartCount)
+                            .build();
+                }));
     }
 
     private Integer getCartCount(Long cartId, Long id) {
@@ -182,6 +142,7 @@ public class ItemServiceImpl implements ItemService {
         if (cartCount == null) {
             cartCount = 0;
         }
+
         return cartCount;
     }
 
@@ -221,12 +182,60 @@ public class ItemServiceImpl implements ItemService {
             list.add(new ItemDto(-1L, "", "", "", null, 0));
         }
         log.trace("getDtoList: rowSize={}, filledSize={}", rowSize, list.size());
+
         return list;
     }
 
-    private CartDto obtainCart() {
-        CartDto cart = cartService.getItemsInTheCart();
-        log.debug("obtainCart: cartId={}, itemsCount={}", cart.id(), cart.items().size());
-        return cart;
+    private Mono<CartDto> obtainCart() {
+        return cartService.getItemsInTheCart();
+    }
+
+    private List<Item> getItemList(GetItemsRequestDto request, List<Item> filtered) {
+        switch (request.getSort()) {
+            case ALPHA -> filtered = filtered.stream()
+                    .sorted(Comparator.comparing(Item::getTitle))
+                    .toList();
+            case PRICE -> filtered = filtered.stream()
+                    .sorted(Comparator.comparing(Item::getPrice))
+                    .toList();
+        }
+        return filtered;
+    }
+
+    private List<Item> getFiltered(GetItemsRequestDto request, List<Item> filtered) {
+        String lower = request.getSearch().trim().toLowerCase();
+        filtered = filtered.stream()
+                .filter(i -> i.getTitle().toLowerCase().contains(lower)
+                        || (i.getDescription() != null
+                        && i.getDescription().toLowerCase().contains(lower)))
+                .toList();
+
+        return filtered;
+    }
+
+    private Result getResult(GetItemsRequestDto request, List<Item> filtered) {
+        int pageSize = request.getPageSize() != null ? request.getPageSize() : 5;
+        int pageNumber = request.getPageNumber() != null ? request.getPageNumber() : 1;
+
+        int total = filtered.size();
+        int from = Math.max((pageNumber - 1) * pageSize, 0);
+        int to = Math.min(from + pageSize, total);
+
+        List<Item> page = from < total ? filtered.subList(from, to) : List.of();
+        List<ItemDto> items = mapper.toDto(page);
+        List<List<ItemDto>> itemsRows = splitByRows(items, 3);
+
+        Paging paging = Paging.builder()
+                .total(total)
+                .pageSize(pageSize)
+                .pageNumber(pageNumber)
+                .hasPrevious(pageNumber > 1)
+                .hasNext(pageNumber * pageSize < total)
+                .build();
+
+        return new Result(items, itemsRows, paging);
+    }
+
+    private record Result(List<ItemDto> items, List<List<ItemDto>> itemsRows, Paging paging) {
     }
 }
