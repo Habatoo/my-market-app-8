@@ -12,11 +12,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 /**
@@ -44,18 +46,25 @@ class BuyControllerTest {
      */
     @Test
     @DisplayName("Успешная покупка — редирект на новый заказ с флагом newOrder")
-    void testBuyWithNewOrderTest() {
+    void testBuyWithNewOrder() {
         CartDto cart = CartDto.builder().id(1L).build();
-        OrderDto order1 = OrderDto.builder().id(10L).dateTime(LocalDateTime.now().minusMinutes(5)).build();
-        OrderDto order2 = OrderDto.builder().id(11L).dateTime(LocalDateTime.now()).build();
 
-        when(cartService.getItemsInTheCart()).thenReturn(cart);
+        LocalDateTime t1 = LocalDateTime.of(2024, 1, 1, 10, 0);
+        LocalDateTime t2 = LocalDateTime.of(2024, 1, 1, 10, 5);
+
+        OrderDto order1 = OrderDto.builder().id(10L).dateTime(t1).build();
+        OrderDto order2 = OrderDto.builder().id(11L).dateTime(t2).build();
+
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cart));
         doNothing().when(buyService).buy(1L);
-        when(orderService.getOrders()).thenReturn(List.of(order1, order2));
+        when(orderService.getOrders()).thenReturn(Flux.just(order1, order2));
 
-        String result = buyController.buy();
+        Mono<String> result = buyController.buy();
 
-        assertEquals("redirect:/orders/11?newOrder=true", result);
+        StepVerifier.create(result)
+                .expectNext("redirect:/orders/11?newOrder=true")
+                .verifyComplete();
+
         verify(buyService).buy(1L);
         verify(orderService).getOrders();
         verify(cartService).getItemsInTheCart();
@@ -66,16 +75,19 @@ class BuyControllerTest {
      */
     @Test
     @DisplayName("Покупка без заказов — редирект на список заказов")
-    void testBuyNoOrdersTest() {
+    void testBuyNoOrders() {
         CartDto cart = CartDto.builder().id(2L).build();
 
-        when(cartService.getItemsInTheCart()).thenReturn(cart);
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cart));
         doNothing().when(buyService).buy(2L);
-        when(orderService.getOrders()).thenReturn(List.of());
+        when(orderService.getOrders()).thenReturn(Flux.fromIterable(List.of()));
 
-        String result = buyController.buy();
+        Mono<String> result = buyController.buy();
 
-        assertEquals("redirect:/orders/", result);
+        StepVerifier.create(result)
+                .expectNext("redirect:/orders/")
+                .verifyComplete();
+
         verify(buyService).buy(2L);
         verify(orderService).getOrders();
         verify(cartService).getItemsInTheCart();

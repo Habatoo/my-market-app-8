@@ -5,7 +5,9 @@ import io.github.habatoo.dto.enums.Action;
 import io.github.habatoo.dto.enums.Sort;
 import io.github.habatoo.dto.request.ChangeNumberOfItemsRequestDto;
 import io.github.habatoo.dto.request.GetItemsRequestDto;
-import io.github.habatoo.dto.response.*;
+import io.github.habatoo.dto.response.ItemDto;
+import io.github.habatoo.dto.response.ItemDtoResponse;
+import io.github.habatoo.dto.response.ItemsDtoResponse;
 import io.github.habatoo.servicies.CartService;
 import io.github.habatoo.servicies.ItemService;
 import org.junit.jupiter.api.DisplayName;
@@ -18,14 +20,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Objects;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 /**
@@ -53,9 +54,8 @@ class ItemControllerTest {
      * Тест получения и отображения списка товаров с фильтрацией и пагинацией.
      * Проверяет добавление объектов в модель и возврат правильного имени шаблона.
      */
-    @ParameterizedTest
     @MethodSource("paramsCombinations")
-    @DisplayName("GET \"/items\" — все варианты параметров (null, пустые, корректные)")
+    @DisplayName("GET /items — все варианты параметров (null, пустые, корректные)")
     void testGetItemsVariants(String search, Sort sort, Integer pageNumber, Integer pageSize) {
         GetItemsRequestDto req = GetItemsRequestDto.builder()
                 .search(search)
@@ -64,21 +64,22 @@ class ItemControllerTest {
                 .pageSize(pageSize)
                 .build();
 
-        ItemsDtoResponse itemsResp = mock(ItemsDtoResponse.class);
-        when(itemService.getItems(any(GetItemsRequestDto.class))).thenReturn(itemsResp);
-        when(itemsResp.cart()).thenReturn(mock(CartDto.class));
-        when(itemsResp.itemsRows()).thenReturn(List.of());
-        when(itemsResp.paging()).thenReturn(mock(Paging.class));
+        ItemsDtoResponse response = mock(ItemsDtoResponse.class);
+        when(itemService.getItems(any(GetItemsRequestDto.class))).thenReturn(Mono.just(response));
 
-        String result = itemController.getItems(req, model);
+        Mono<String> result = itemController.getItems(req, model);
 
-        assertEquals("items", result);
+        StepVerifier.create(result)
+                .expectNext("items")
+                .verifyComplete();
+
         verify(itemService).getItems(any(GetItemsRequestDto.class));
-        verify(model).addAttribute("cart", itemsResp.cart());
-        verify(model).addAttribute("items", itemsResp.itemsRows());
+        verify(model).addAttribute("cart", response.cart());
+        verify(model).addAttribute("items", response.itemsRows());
         verify(model).addAttribute("search", (search == null ? "" : search));
         verify(model).addAttribute("sort", sort);
-        verify(model).addAttribute("paging", itemsResp.paging());
+        verify(model).addAttribute("paging", response.paging());
+        verify(model).addAttribute("itemCounts", response.itemCounts());
     }
 
     /**
@@ -86,25 +87,26 @@ class ItemControllerTest {
      * Проверяет генерацию правильной ссылки и вызов сервиса изменения количеста.
      */
     @Test
-    @DisplayName("POST \"/items\" — изменение количества товара, корректный редирект")
+    @DisplayName("POST /items — изменение количества товара, корректный редирект")
     void testChangeNumberOfItems() {
-        Long id = 1L;
         ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
-                .id(id)
+                .id(1L)
                 .search("searchQuery")
                 .action(Action.PLUS)
                 .sort(Sort.PRICE)
                 .pageNumber(2)
                 .pageSize(10)
                 .build();
-        when(cartService.changeNumberOfItems(eq(req))).thenReturn(mock(ItemDto.class));
 
-        String result = itemController.changeNumberOfItems(req);
+        when(cartService.changeNumberOfItems(eq(req))).thenReturn(Mono.just(mock(ItemDto.class)));
 
-        assertEquals("redirect:/items?search=searchQuery&sort=PRICE&pageSize=10&pageNumber=2", result);
-        verify(cartService).changeNumberOfItems(
-                argThat(requestDto -> requestDto.getId().equals(id)
-                        && requestDto.getAction() == Action.PLUS));
+        Mono<String> result = itemController.changeNumberOfItems(req, mock(BindingResult.class));
+
+        StepVerifier.create(result)
+                .expectNext("redirect:/items?search=searchQuery&sort=PRICE&pageSize=10&pageNumber=2")
+                .verifyComplete();
+
+        verify(cartService).changeNumberOfItems(eq(req));
     }
 
     /**
@@ -112,20 +114,21 @@ class ItemControllerTest {
      * Проверяет передачу в модель данных товара и количества.
      */
     @Test
-    @DisplayName("GET \"/items/{id}\" — отображение карточки товара")
+    @DisplayName("GET /items/{id} — отображение карточки товара")
     void testGetItemPage() {
         Long id = 42L;
-        ItemDtoResponse itemResp = mock(ItemDtoResponse.class);
-        when(itemService.getItem(id)).thenReturn(itemResp);
-        when(itemResp.item()).thenReturn(mock(ItemDto.class));
-        when(itemResp.cartCount()).thenReturn(3);
+        ItemDtoResponse itemResponse = mock(ItemDtoResponse.class);
+        when(itemService.getItem(id)).thenReturn(Mono.just(itemResponse));
 
-        String result = itemController.getItemPage(id, model);
+        Mono<String> result = itemController.getItemPage(id, model);
 
-        assertEquals("item", result);
+        StepVerifier.create(result)
+                .expectNext("item")
+                .verifyComplete();
+
         verify(itemService).getItem(id);
-        verify(model).addAttribute("item", itemResp.item());
-        verify(model).addAttribute("cartCount", 3);
+        verify(model).addAttribute("item", itemResponse.item());
+        verify(model).addAttribute("cartCount", itemResponse.cartCount());
     }
 
     /**
@@ -133,28 +136,27 @@ class ItemControllerTest {
      * Проверяет вызов метода сервиса и заполнение модели актуальными данными.
      */
     @Test
-    @DisplayName("POST \"/items/{id}\" — изменение количества, возврат обновлённой карточки товара")
+    @DisplayName("POST /items/{id} — изменение количества товара и возврат карточки")
     void testChangeItemFromItemPage() {
         Long id = 12L;
         ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
-                .id(id)
-                .search("searchQuery")
                 .action(Action.MINUS)
-                .pageNumber(10)
-                .pageSize(2)
                 .build();
-        ItemDtoResponse item = mock(ItemDtoResponse.class);
-        when(itemService.changeNumberOfItemsFromPage(eq(req))).thenReturn(item);
+        req.setId(id);
 
-        String result = itemController.changeItemFromItemPage(id, req, model);
+        ItemDtoResponse itemResponse = mock(ItemDtoResponse.class);
+        when(itemService.changeNumberOfItemsFromPage(eq(req))).thenReturn(Mono.just(itemResponse));
 
-        assertEquals("item", result);
-        verify(itemService).changeNumberOfItemsFromPage(argThat(requestDto ->
-                requestDto.getId().equals(id) && requestDto.getAction() == Action.MINUS));
-        verify(model).addAttribute("item", item.item());
-        verify(model).addAttribute("cartCount", item.cartCount());
+        Mono<String> result = itemController.changeItemFromItemPage(id, req, model);
+
+        StepVerifier.create(result)
+                .expectNext("item")
+                .verifyComplete();
+
+        verify(itemService).changeNumberOfItemsFromPage(eq(req));
+        verify(model).addAttribute("item", itemResponse);
+        verify(model).addAttribute("cartCount", itemResponse.cartCount());
     }
-
 
     @ParameterizedTest
     @MethodSource("redirectParams")
@@ -172,18 +174,20 @@ class ItemControllerTest {
                 .pageNumber(pageNumber)
                 .build();
 
-        String redirect = itemController.changeNumberOfItems(req);
+        when(cartService.changeNumberOfItems(eq(req))).thenReturn(Mono.just(mock(ItemDto.class)));
 
-        assertEquals(expectedRedirect, redirect);
+        Mono<String> redirectMono = itemController.changeNumberOfItems(req, mock(BindingResult.class));
 
-        Map<String, String> params = Arrays.stream(redirect.substring(redirect.indexOf("?")+1).split("&"))
-                .map(kv -> kv.split("=", 2))
-                .collect(Collectors.toMap(parts -> parts[0], parts -> parts.length == 2 ? parts[1] : ""));
+        StepVerifier.create(redirectMono)
+                .expectNext(expectedRedirect)
+                .verifyComplete();
 
-        assertEquals(expectedSearch, params.get("search"));
-        assertEquals(expectedSort, params.get("sort"));
-        assertEquals(String.valueOf(expectedPageSize), params.get("pageSize"));
-        assertEquals(String.valueOf(expectedPageNumber), params.get("pageNumber"));
+        verify(cartService).changeNumberOfItems(argThat(requestDto ->
+                Objects.equals(requestDto.getSearch(), req.getSearch()) &&
+                        requestDto.getSort() == req.getSort() &&
+                        Objects.equals(requestDto.getPageNumber(), req.getPageNumber()) &&
+                        Objects.equals(requestDto.getPageSize(), req.getPageSize())
+        ));
     }
 
     static Stream<Arguments> redirectParams() {
