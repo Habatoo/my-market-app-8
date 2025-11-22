@@ -12,6 +12,8 @@ import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
+import java.util.NoSuchElementException;
+
 /**
  * Контроллер витрины магазина.
  * Отвечает за обработку запросов по просмотру списка товаров, отдельной позиции,
@@ -26,8 +28,6 @@ public class ItemController {
     private static final String ITEMS = "items";
 
     private static final String ITEM = "item";
-
-    private static final String NOT_FOUND = "404";
 
     private final ItemService itemService;
 
@@ -50,6 +50,7 @@ public class ItemController {
                 req.getSearch(), req.getSort(), req.getPageSize(), req.getPageNumber());
 
         return itemService.getItems(req)
+                .switchIfEmpty(Mono.error(new NoSuchElementException("Каталог товаров пуст")))
                 .map(items -> {
                     log.debug("Получено {} строк товаров, paging={}",
                             items.itemsRows().size(), items.paging());
@@ -79,18 +80,20 @@ public class ItemController {
         log.info("POST /items — изменение количества товара из витрины, request={}", req);
 
         if (bindingResult.hasErrors()) {
-            log.warn("Редирект после ошибки");
+            log.warn("Ошибка валидации DTO");
 
-            return Mono.just("redirect:/items");
+            return Mono.error(new IllegalArgumentException("Некорректные параметры изменения товара"));
         }
 
         String redirect = "redirect:/items?search=" + (req.getSearch() == null ? "" : req.getSearch())
                 + "&sort=" + (req.getSort() == null ? "NO" : req.getSort())
                 + "&pageSize=" + (req.getPageSize() == null ? 5 : req.getPageSize())
                 + "&pageNumber=" + (req.getPageNumber() == null ? 1 : req.getPageNumber());
+
         log.info("Редирект после изменения: {}", redirect);
 
         return cartService.changeNumberOfItems(req)
+                .switchIfEmpty(Mono.error(new NoSuchElementException("Товар для изменения не найден")))
                 .map(itemDto -> redirect);
     }
 
@@ -108,10 +111,10 @@ public class ItemController {
         log.info("GET /items/{} — запрос страницы товара", id);
 
         return itemService.getItem(id)
+                .switchIfEmpty(Mono.error(new NoSuchElementException("Товар не найден")))
                 .doOnNext(item -> model.addAttribute(ITEM, item.item()))
                 .doOnNext(item -> model.addAttribute("cartCount", item.cartCount()))
-                .map(item -> ITEM)
-                .defaultIfEmpty(NOT_FOUND);
+                .map(item -> ITEM);
     }
 
     /**
@@ -132,9 +135,9 @@ public class ItemController {
         req.setId(id);
 
         return itemService.changeNumberOfItemsFromPage(req)
+                .switchIfEmpty(Mono.error(new NoSuchElementException("Товар для изменения не найден")))
                 .doOnNext(item -> model.addAttribute(ITEM, item))
                 .doOnNext(item -> model.addAttribute("cartCount", item.cartCount()))
-                .map(item -> ITEM)
-                .defaultIfEmpty(NOT_FOUND);
+                .map(item -> ITEM);
     }
 }

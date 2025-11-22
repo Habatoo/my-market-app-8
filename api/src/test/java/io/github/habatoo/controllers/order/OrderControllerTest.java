@@ -10,7 +10,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ui.Model;
-import org.springframework.web.reactive.result.view.Rendering;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -19,8 +18,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 /**
@@ -52,14 +49,10 @@ class OrderControllerTest {
 
         when(orderService.getOrders()).thenReturn(orders);
 
-        Mono<Rendering> result = orderController.getOrderList(model);
+        Mono<String> result = orderController.getOrderList(model);
 
         StepVerifier.create(result)
-                .assertNext(rendering -> {
-                    assertEquals("/orders", rendering.view());
-                    assertTrue(rendering.modelAttributes().containsKey("orders"));
-                    assertEquals(orders, rendering.modelAttributes().get("orders"));
-                })
+                .expectNext("orders")
                 .verifyComplete();
 
         verify(orderService).getOrders();

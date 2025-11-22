@@ -48,7 +48,7 @@ class CorsAutoConfigurationTest {
     }
 
     @Test
-    @DisplayName("Автоконфигурация CORS создает бин WebMvcConfigurer и правильно привязывает CorsProperties")
+    @DisplayName("Автоконфигурация CORS создает бин WebFluxConfigurer и правильно привязывает CorsProperties")
     void testCorsAutoConfigurationCreatesWebMvcConfigurer() {
         contextRunner.run(context -> {
             WebFluxConfigurer configurer = context.getBean(WebFluxConfigurer.class);
@@ -65,9 +65,10 @@ class CorsAutoConfigurationTest {
     }
 
     @Test
+    @DisplayName("Конфигурация CorsProperties")
     void testAddCorsMappingsCalledWithExpectedArguments() {
         CorsProperties corsProps = new CorsProperties(
-                "/api/**",
+                "/**",
                 List.of("http://localhost"),
                 List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"),
                 "*",
@@ -77,7 +78,7 @@ class CorsAutoConfigurationTest {
         CorsRegistry registry = mock(CorsRegistry.class);
         CorsRegistration registration = mock(CorsRegistration.class);
 
-        when(registry.addMapping(eq("/api/**"))).thenReturn(registration);
+        when(registry.addMapping(eq("/**"))).thenReturn(registration);
         when(registration.allowedOriginPatterns(eq(new String[]{"http://localhost"}))).thenReturn(registration);
         when(registration.allowedMethods(eq(new String[]{"GET", "POST", "PUT", "DELETE", "OPTIONS"}))).thenReturn(registration);
         when(registration.allowedHeaders(eq(new String[]{"*"}))).thenReturn(registration);
@@ -87,7 +88,7 @@ class CorsAutoConfigurationTest {
         WebFluxConfigurer configurer = new CorsAutoConfiguration().corsWebFluxConfigurer(corsProps);
         configurer.addCorsMappings(registry);
 
-        verify(registry).addMapping("/api/**");
+        verify(registry).addMapping("/**");
         verify(registration).allowedOriginPatterns(new String[]{"http://localhost"});
         verify(registration).allowedMethods(new String[]{"GET", "POST", "PUT", "DELETE", "OPTIONS"});
         verify(registration).allowedHeaders(new String[]{"*"});

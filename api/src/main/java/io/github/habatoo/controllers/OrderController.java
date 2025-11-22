@@ -9,8 +9,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.reactive.result.view.Rendering;
 import reactor.core.publisher.Mono;
+
+import java.util.NoSuchElementException;
 
 /**
  * Контроллер для работы с заказами пользователя.
@@ -26,8 +27,6 @@ public class OrderController {
 
     private static final String ORDER = "order";
 
-    private static final String NOT_FOUND = "404";
-
     private final OrderService orderService;
 
     /**
@@ -36,14 +35,15 @@ public class OrderController {
      * @return имя шаблона списка заказов
      */
     @GetMapping
-    public Mono<Rendering> getOrderList(Model model) {
+    public Mono<String> getOrderList(Model model) {
         log.info("GET /orders — запрос списка заказов пользователя");
 
-        return Mono.just(
-                Rendering.view("/orders")
-                        .modelAttribute(ORDERS, orderService.getOrders())
-                        .build()
-        );
+        return orderService.getOrders()
+                .collectList()
+                .switchIfEmpty(Mono.error(new NoSuchElementException("Список заказов пуст")))
+                .doOnNext(list -> log.debug("Найдено {} заказов", list.size()))
+                .doOnNext(list -> model.addAttribute(ORDERS, list))
+                .map(list -> ORDERS);
     }
 
     /**
@@ -63,9 +63,11 @@ public class OrderController {
         log.info("GET /orders/{} — просмотр заказа, newOrder={}", id, newOrder);
 
         return orderService.getOrder(id, newOrder)
-                .doOnNext(order -> model.addAttribute(ORDER, order))
-                .doOnNext(order -> model.addAttribute("newOrder", newOrder))
-                .map(order -> ORDER)
-                .defaultIfEmpty(NOT_FOUND);
+                .switchIfEmpty(Mono.error(new NoSuchElementException("Заказ с id=" + id + " не найден")))
+                .doOnNext(order -> {
+                    model.addAttribute(ORDER, order);
+                    model.addAttribute("newOrder", newOrder);
+                })
+                .map(order -> ORDER);
     }
 }

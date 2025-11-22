@@ -17,7 +17,10 @@ import reactor.test.StepVerifier;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.NoSuchElementException;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.Mockito.*;
 
 /**
@@ -88,4 +91,51 @@ class CartControllerTest {
         verify(cartService).changeNumberOfItemsFromCart(refEq(req));
         verify(model).addAttribute(eq("cart"), any(CartDto.class));
     }
+
+    /**
+     * GET /cart/items — если корзина пустая, должно выбросить NoSuchElementException
+     */
+    @Test
+    @DisplayName("GET /cart/items — корзина не найдена, выбрасывается NoSuchElementException")
+    void showCartNotFoundTest() {
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.empty());
+
+        Mono<String> result = cartController.showCart(model);
+
+        StepVerifier.create(result)
+                .expectErrorSatisfies(throwable -> {
+                            assertInstanceOf(NoSuchElementException.class, throwable);
+                            assertEquals("Корзина не найдена", throwable.getMessage());
+                        }
+                )
+                .verify();
+
+        verify(cartService).getItemsInTheCart();
+        verify(model, never()).addAttribute(eq("cart"), any());
+    }
+
+    /**
+     * POST /cart/items — если элемент корзины не найден, выбрасывается NoSuchElementException
+     */
+    @Test
+    @DisplayName("POST /cart/items — элемент корзины не найден, выбрасывается NoSuchElementException")
+    void changeNumberOfItemsNotFoundTest() {
+        ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder().build();
+
+        when(cartService.changeNumberOfItemsFromCart(any(ChangeNumberOfItemsRequestDto.class)))
+                .thenReturn(Mono.empty());
+
+        Mono<String> result = cartController.changeNumberOfItemsFromCart(req, model);
+
+        StepVerifier.create(result)
+                .expectErrorSatisfies(throwable -> {
+                    assertInstanceOf(NoSuchElementException.class, throwable);
+                    assertEquals("Элемент корзины не найден", throwable.getMessage());
+                })
+                .verify();
+
+        verify(cartService).changeNumberOfItemsFromCart(refEq(req));
+        verify(model, never()).addAttribute(eq("cart"), any());
+    }
+
 }

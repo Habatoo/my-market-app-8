@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import reactor.core.publisher.Mono;
 
+import java.util.NoSuchElementException;
+
 /**
  * Контроллер для работы с корзиной покупателя.
  * Позволяет отобразить содержимое корзины и изменять количество товаров.
@@ -23,8 +25,6 @@ import reactor.core.publisher.Mono;
 public class CartController {
 
     private static final String CART = "cart";
-
-    private static final String NOT_FOUND = "404";
 
     private final CartService cartService;
 
@@ -39,9 +39,9 @@ public class CartController {
         log.info("GET /cart/items — отображение корзины");
 
         return cartService.getItemsInTheCart()
+                .switchIfEmpty(Mono.error(new NoSuchElementException("Корзина не найдена")))
                 .doOnNext(cart -> model.addAttribute(CART, cart))
-                .map(order -> CART)
-                .defaultIfEmpty(NOT_FOUND);
+                .map(cart -> CART);
     }
 
     /**
@@ -59,8 +59,8 @@ public class CartController {
         log.info("POST /cart/items — изменение количества товара, request={}", req);
 
         return cartService.changeNumberOfItemsFromCart(req)
+                .switchIfEmpty(Mono.error(new NoSuchElementException("Элемент корзины не найден")))
                 .doOnNext(cart -> model.addAttribute(CART, cart))
-                .map(order -> CART)
-                .defaultIfEmpty(NOT_FOUND);
+                .map(cart -> CART);
     }
 }
