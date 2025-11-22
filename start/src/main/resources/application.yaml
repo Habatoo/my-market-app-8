@@ -1,11 +1,11 @@
 spring:
   application:
-    name: my-market-app-5
+    name: my-market-app-6
   profiles:
     active: dev
   web:
     cors:
-      path-pattern: "/api/**"
+      path-pattern: "/**"
       allowed-origin-patterns:
         - "http://localhost"
         - "http://127.0.0.1"

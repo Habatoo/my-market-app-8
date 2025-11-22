@@ -10,7 +10,7 @@ spring:
     change-log: classpath:/db/changelog/db.changelog-master.yaml
   web:
     cors:
-      path-pattern: "/api/**"
+      path-pattern: "/**"
       allowed-origin-patterns:
         - "http://localhost"
         - "http://127.0.0.1"
