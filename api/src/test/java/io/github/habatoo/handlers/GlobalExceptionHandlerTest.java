@@ -10,8 +10,10 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.ui.Model;
 import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import java.util.NoSuchElementException;
+
 import static org.mockito.Mockito.verify;
 
 /**
@@ -42,9 +44,31 @@ class GlobalExceptionHandlerTest {
 
         Mono<String> viewName = handler.handleBadRequest(ex, model);
 
-        assertNotNull(viewName);
+        StepVerifier.create(viewName)
+                .expectNext("error/400")
+                .verifyComplete();
+
         verify(model).addAttribute("error", "Ошибка в параметрах запроса: Невалидный параметр");
         verify(model).addAttribute("status", 400);
+    }
+
+    /**
+     * Тест обработки NoHandlerFoundException (ошибка 404).
+     * Проверяет, что возвращается страница ошибки 404 с нужными атрибутами.
+     */
+    @Test
+    @DisplayName("Перехват NoHandlerFoundException — страница 404")
+    void testHandleNotFound() {
+        NoSuchElementException ex = new NoSuchElementException("GET not found");
+
+        Mono<String> viewName = handler.handleNotFound(ex, model);
+
+        StepVerifier.create(viewName)
+                .expectNext("error/404")
+                .verifyComplete();
+
+        verify(model).addAttribute("error", "Страница не найдена или удалена");
+        verify(model).addAttribute("status", 404);
     }
 
     /**
@@ -57,7 +81,10 @@ class GlobalExceptionHandlerTest {
         DataAccessException ex = new DataAccessResourceFailureException("БД недоступна");
         Mono<String> viewName = handler.handleDatabaseError(ex, model);
 
-        assertNotNull(viewName);
+        StepVerifier.create(viewName)
+                .expectNext("error/db")
+                .verifyComplete();
+
         verify(model).addAttribute("error", "Ошибка базы данных (БД): БД недоступна");
         verify(model).addAttribute("status", 500);
     }
@@ -75,7 +102,10 @@ class GlobalExceptionHandlerTest {
 
         Mono<String> viewName = handler.handleIllegalStateException(ex, model);
 
-        assertNotNull(viewName);
+        StepVerifier.create(viewName)
+                .expectNext("error/500")
+                .verifyComplete();
+
         verify(model).addAttribute("error", "Корзина не найдена");
         verify(model).addAttribute("status", 500);
     }
@@ -91,7 +121,10 @@ class GlobalExceptionHandlerTest {
 
         Mono<String> viewName = handler.handleGenericException(ex, model);
 
-        assertNotNull(viewName);
+        StepVerifier.create(viewName)
+                .expectNext("error/500")
+                .verifyComplete();
+
         verify(model).addAttribute("error", "Внутренняя ошибка сервера");
         verify(model).addAttribute("status", 500);
     }

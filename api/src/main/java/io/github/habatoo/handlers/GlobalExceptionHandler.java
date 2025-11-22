@@ -7,6 +7,8 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import reactor.core.publisher.Mono;
 
+import java.util.NoSuchElementException;
+
 /**
  * Глобальный перехватчик исключений — для централизованной обработки ошибок в контроллерах.
  * Возвращает страницы ошибок с сообщением и кодом.
@@ -22,10 +24,24 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public Mono<String> handleBadRequest(IllegalArgumentException e, Model model) {
         log.warn("Bad request [{}]: {}", e.getClass().getSimpleName(), e.getMessage());
+
         model.addAttribute("error", "Ошибка в параметрах запроса: " + e.getMessage());
         model.addAttribute("status", 400);
 
         return Mono.just("error/400");
+    }
+
+    /**
+     * Обработка ошибки "страница не найдена" (404).
+     */
+    @ExceptionHandler(NoSuchElementException.class)
+    public Mono<String> handleNotFound(Exception e, Model model) {
+        log.warn("Страница не найдена [{}]: {}", e.getClass().getSimpleName(), e.getMessage());
+
+        model.addAttribute("error", "Страница не найдена или удалена");
+        model.addAttribute("status", 404);
+
+        return Mono.just("error/404");
     }
 
     /**
@@ -35,6 +51,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataAccessException.class)
     public Mono<String> handleDatabaseError(Exception e, Model model) {
         log.error("Ошибка базы данных [{}]: {}", e.getClass().getSimpleName(), e.getMessage(), e);
+
         model.addAttribute("error", "Ошибка базы данных (БД): " + e.getMessage());
         model.addAttribute("status", 500);
 
@@ -48,6 +65,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public Mono<String> handleIllegalStateException(IllegalStateException e, Model model) {
         log.error("Некорректное состояние [{}]: {}", e.getClass().getSimpleName(), e.getMessage(), e);
+
         model.addAttribute("error", "Корзина не найдена");
         model.addAttribute("status", 500);
 
@@ -61,6 +79,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public Mono<String> handleGenericException(Exception e, Model model) {
         log.error("Внутренняя ошибка сервера [{}]: {}", e.getClass().getSimpleName(), e.getMessage(), e);
+
         model.addAttribute("error", "Внутренняя ошибка сервера");
         model.addAttribute("status", 500);
 
