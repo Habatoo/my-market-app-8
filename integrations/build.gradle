@@ -9,7 +9,7 @@ repositories {
 
 dependencies {
     implementation platform(project(':bom'))
-    implementation platform('org.springframework.boot:spring-boot-dependencies:3.5.6')
+    implementation platform('org.springframework.boot:spring-boot-dependencies:3.5.8')
 
     implementation project(':core')
     implementation project(':api')
@@ -23,6 +23,7 @@ dependencies {
     compileOnly 'org.projectlombok:lombok'
     runtimeOnly 'org.postgresql:postgresql'
     annotationProcessor 'org.projectlombok:lombok'
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
