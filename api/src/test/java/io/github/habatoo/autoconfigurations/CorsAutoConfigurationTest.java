@@ -31,7 +31,7 @@ class CorsAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(TestConfig.class)
             .withPropertyValues(
-                    "spring.web.cors.path-pattern=/api/**",
+                    "spring.web.cors.path-pattern=/**",
                     "spring.web.cors.allowed-origin-patterns[0]=http://localhost",
                     "spring.web.cors.allowed-methods[0]=GET",
                     "spring.web.cors.allowed-methods[1]=POST",
@@ -55,7 +55,7 @@ class CorsAutoConfigurationTest {
             assertThat(configurer).isNotNull();
 
             CorsProperties corsProps = context.getBean(CorsProperties.class);
-            assertThat(corsProps.pathPattern()).isEqualTo("/api/**");
+            assertThat(corsProps.pathPattern()).isEqualTo("/**");
             assertThat(corsProps.allowedOriginPatterns()).contains("http://localhost");
             assertThat(corsProps.allowedMethods()).containsExactly("GET", "POST", "PUT", "DELETE", "OPTIONS");
             assertThat(corsProps.allowedHeaders()).contains("*");
