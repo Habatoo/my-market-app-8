@@ -9,12 +9,16 @@ import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.ItemRepository;
 import io.github.habatoo.servicies.CartService;
 import io.github.habatoo.servicies.ItemService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -24,23 +28,13 @@ import java.util.stream.IntStream;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class ItemServiceImpl implements ItemService {
 
     private final ItemRepository repository;
     private final CartItemRepository cartItemRepository;
     private final CartService cartService;
     private final ItemMapper mapper;
-
-    public ItemServiceImpl(
-            ItemRepository repository,
-            CartItemRepository cartItemRepository,
-            CartService cartService,
-            ItemMapper mapper) {
-        this.repository = repository;
-        this.cartItemRepository = cartItemRepository;
-        this.cartService = cartService;
-        this.mapper = mapper;
-    }
 
     /**
      * {@inheritDoc}
@@ -51,11 +45,12 @@ public class ItemServiceImpl implements ItemService {
 
         Mono<CartDto> cartMono = obtainCart();
 
-        return Mono.fromCallable(repository::findAll)
-                .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(all -> {
+        return repository.findAll()
+                .collectList()
+                .map(allItems -> {
 
-                    List<Item> filtered = all;
+                    List<Item> filtered = allItems;
+
                     if (request.getSearch() != null && !request.getSearch().isBlank()) {
                         filtered = getFiltered(request, filtered);
                     }
@@ -64,18 +59,23 @@ public class ItemServiceImpl implements ItemService {
                         filtered = getItemList(request, filtered);
                     }
 
-                    Result result = getResult(request, filtered);
+                    return getResult(request, filtered);
+                })
+                .zipWith(cartMono)
+                .flatMap(tuple -> {
 
-                    return cartMono.map(cart -> {
-                        Map<Long, Integer> itemCounts = obtainItemCounts(result.items(), cart.id());
+                    Result result = tuple.getT1();
+                    CartDto cart = tuple.getT2();
 
-                        return ItemsDtoResponse.builder()
-                                .itemsRows(result.itemsRows())
-                                .cart(cart)
-                                .paging(result.paging())
-                                .itemCounts(itemCounts)
-                                .build();
-                    });
+                    return obtainItemCounts(result.items(), cart.id())
+                            .map(itemCounts ->
+                                    ItemsDtoResponse.builder()
+                                            .itemsRows(result.itemsRows())
+                                            .cart(cart)
+                                            .paging(result.paging())
+                                            .itemCounts(itemCounts)
+                                            .build()
+                            );
                 });
     }
 
@@ -86,31 +86,33 @@ public class ItemServiceImpl implements ItemService {
     public Mono<ItemDtoResponse> getItem(Long id) {
         log.debug("Запрошено получение товара по id={}", id);
 
-        ItemDto item = repository.findById(id)
-                .map(mapper::toDto)
-                .orElseThrow(() -> {
-                    log.error("Товар с id={} не найден", id);
+        Mono<ItemDto> itemMono = repository.findById(id)
+                .switchIfEmpty(Mono.error(new IllegalStateException(
+                        "Товар с id=%d не найден".formatted(id)
+                )))
+                .doOnNext(item -> log.debug("Товар найден: {}", item))
+                .map(mapper::toDto);
 
-                    return new IllegalStateException("Товар с id=%d не найден".formatted(id));
-                });
         Mono<CartDto> cartMono = obtainCart();
 
-        return cartMono.map(cart -> {
+        return itemMono
+                .zipWith(cartMono)
+                .flatMap(tuple -> {
+                    ItemDto itemDto = tuple.getT1();
+                    CartDto cart = tuple.getT2();
                     Long cartId = cart.id();
-                    Integer cartCount = cartItemRepository.findCountByCartIdAndItemId(cartId, id);
 
-                    if (cartCount == null) {
-                        cartCount = 0;
-                    }
+                    return cartItemRepository.findCountByCartIdAndItemId(cartId, id)
+                            .defaultIfEmpty(0)
+                            .map(cartCount -> {
+                                log.info("Товар получен: id={}, в корзине={}", id, cartCount);
 
-                    log.info("Товар получен: id={}, в корзине={}", id, cartCount);
-
-                    return ItemDtoResponse.builder()
-                            .item(item)
-                            .cartCount(cartCount)
-                            .build();
-                }
-        );
+                                return ItemDtoResponse.builder()
+                                        .item(itemDto)
+                                        .cartCount(cartCount)
+                                        .build();
+                            });
+                });
     }
 
     /**
@@ -120,40 +122,39 @@ public class ItemServiceImpl implements ItemService {
     public Mono<ItemDtoResponse> changeNumberOfItemsFromPage(ChangeNumberOfItemsRequestDto request) {
         log.debug("Запрошено изменение товаров из страницы: request={}", request);
 
-        Mono<CartDto> cartMono = obtainCart();
-
         return cartService.changeNumberOfItems(request)
-                .flatMap(item -> cartMono.map(cart -> {
+                .zipWith(obtainCart())
+                .flatMap(tuple -> {
+                    ItemDto item = tuple.getT1();
+                    CartDto cart = tuple.getT2();
                     Long cartId = cart.id();
-                    Integer cartCount = getCartCount(cartId, request.getId());
 
-                    log.info("Изменение количества товара в корзине: itemId={}, newCount={}",
-                            request.getId(), cartCount);
+                    return getCartCount(cartId, request.getId())
+                            .defaultIfEmpty(0)
+                            .map(cartCount -> {
+                                log.info("Изменение количества товара itemId={}, newCount={}",
+                                        request.getId(), cartCount);
 
-                    return ItemDtoResponse.builder()
-                            .item(item)
-                            .cartCount(cartCount)
-                            .build();
-                }));
+                                return ItemDtoResponse.builder()
+                                        .item(item)
+                                        .cartCount(cartCount)
+                                        .build();
+                            });
+                });
     }
 
-    private Integer getCartCount(Long cartId, Long id) {
-        Integer cartCount = cartItemRepository.findCountByCartIdAndItemId(cartId, id);
-        if (cartCount == null) {
-            cartCount = 0;
-        }
-
-        return cartCount;
+    private Mono<Integer> getCartCount(Long cartId, Long id) {
+        return cartItemRepository.findCountByCartIdAndItemId(cartId, id);
     }
 
-    private Map<Long, Integer> obtainItemCounts(List<ItemDto> items, Long cartId) {
-        Map<Long, Integer> itemCounts = new HashMap<>();
-        for (ItemDto item : items) {
-            Integer count = cartItemRepository.findCountByCartIdAndItemId(cartId, item.id());
-            itemCounts.put(item.id(), count == null ? 0 : count);
-        }
-
-        return itemCounts;
+    private Mono<Map<Long, Integer>> obtainItemCounts(List<ItemDto> items, Long cartId) {
+        return Flux.fromIterable(items)
+                .flatMap(item ->
+                        cartItemRepository.findCountByCartIdAndItemId(cartId, item.id())
+                                .defaultIfEmpty(0)
+                                .map(count -> Map.entry(item.id(), count))
+                )
+                .collectMap(Map.Entry::getKey, Map.Entry::getValue);
     }
 
     private List<List<ItemDto>> splitByRows(List<ItemDto> items, int rowSize) {

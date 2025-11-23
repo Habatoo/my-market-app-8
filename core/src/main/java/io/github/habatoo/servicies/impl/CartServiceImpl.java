@@ -3,22 +3,24 @@ package io.github.habatoo.servicies.impl;
 import io.github.habatoo.dto.enums.Action;
 import io.github.habatoo.dto.request.ChangeNumberOfItemsRequestDto;
 import io.github.habatoo.dto.response.CartDto;
+import io.github.habatoo.dto.response.CartItemDto;
 import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.entity.Cart;
 import io.github.habatoo.entity.CartItem;
-import io.github.habatoo.entity.Item;
 import io.github.habatoo.mappers.CartMapper;
 import io.github.habatoo.mappers.ItemMapper;
 import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.CartRepository;
 import io.github.habatoo.repositories.ItemRepository;
 import io.github.habatoo.servicies.CartService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
+import java.util.NoSuchElementException;
 
 /**
  * Реализация для работы с корзиной.
@@ -26,6 +28,7 @@ import java.math.BigDecimal;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class CartServiceImpl implements CartService {
 
     private final CartRepository cartRepository;
@@ -34,78 +37,58 @@ public class CartServiceImpl implements CartService {
     private final CartMapper cartMapper;
     private final ItemMapper itemMapper;
 
-    public CartServiceImpl(
-            CartRepository cartRepository,
-            CartItemRepository cartItemRepository,
-            ItemRepository itemRepository,
-            CartMapper cartMapper,
-            ItemMapper itemMapper) {
-        this.cartRepository = cartRepository;
-        this.cartItemRepository = cartItemRepository;
-        this.itemRepository = itemRepository;
-        this.cartMapper = cartMapper;
-        this.itemMapper = itemMapper;
-    }
-
     /**
      * {@inheritDoc}
      */
     @Transactional
     @Override
     public Mono<ItemDto> changeNumberOfItems(ChangeNumberOfItemsRequestDto request) {
-        log.debug("Запрошено изменение позиций корзины: request={}", request);
-
-        Cart cart = getCurrentCart();
         Long itemId = request.getId();
 
-        log.debug("Получение товара с id={}", itemId);
-
-        Item item = itemRepository.findById(itemId)
-                .orElseThrow(() -> new IllegalStateException("Товар с id=%d не найден".formatted(itemId)));
-        CartItem cartItem = cart.getItems().stream()
-                .filter(ci -> ci.getItem().getId().equals(item.getId()))
-                .findFirst().orElse(null);
-
-        log.debug("Текущий CartItem для товара с id={} найден: {}", itemId, cartItem);
-
-        if (cartItem == null && request.getAction() == Action.PLUS) {
-            log.info("Добавление нового товара в корзину: itemId={}", itemId);
-            cartItem = new CartItem();
-            cartItem.setCart(cart);
-            cartItem.setItem(item);
-            cartItem.setCount(1);
-            cartItem.setPrice(item.getPrice());
-            cart.getItems().add(cartItem);
-            cartItemRepository.save(cartItem);
-        } else if (cartItem != null) {
-            int newCount = cartItem.getCount() + (request.getAction() == Action.PLUS ? 1 : -1);
-
-            log.debug("Обновление количества товара itemId={}, старое={}, новое={}", itemId, cartItem.getCount(), newCount);
-
-            if (newCount > 0) {
-                cartItem.setCount(newCount);
-                cartItemRepository.save(cartItem);
-
-                log.info("Количество товара обновлено: itemId={}, count={}", itemId, newCount);
-            } else {
-                cart.getItems().remove(cartItem);
-                cartItemRepository.delete(cartItem);
-
-                log.info("Товар удалён из корзины: itemId={}", itemId);
-            }
-        }
-
-        recalculateCartTotal(cart);
-
-        log.debug("После пересчёта стоимость корзины: cartId={}, total={}", cart.getId(), cart.getTotal());
-
-        cartRepository.save(cart);
-        ItemDto result = itemMapper.toDto(item);
-
-        log.debug("Возврат DTO товара: {}", result);
-
-        return Mono.just(result);
+        return getCurrentCart()
+                .flatMap(cart ->
+                        cartItemRepository.findAllByCartId(cart.getId())
+                                .filter(ci -> ci.getItemId().equals(itemId))
+                                .next()
+                                .flatMap(cartItem -> {
+                                    int newCount = cartItem.getCount() + (request.getAction() == Action.PLUS ? 1 : -1);
+                                    if (newCount > 0) {
+                                        cartItem.setCount(newCount);
+                                        return cartItemRepository.save(cartItem)
+                                                .flatMap(savedCartItem -> itemRepository.findById(
+                                                        savedCartItem.getItemId()));
+                                    } else {
+                                        return cartItemRepository.delete(cartItem).then(Mono.empty());
+                                    }
+                                })
+                                .switchIfEmpty(
+                                        request.getAction() == Action.PLUS
+                                                ? itemRepository.findById(itemId)
+                                                .flatMap(item -> {
+                                                    CartItem newCartItem = new CartItem();
+                                                    newCartItem.setCartId(cart.getId());
+                                                    newCartItem.setItemId(item.getId());
+                                                    newCartItem.setCount(1);
+                                                    newCartItem.setPrice(item.getPrice());
+                                                    return cartItemRepository.save(newCartItem)
+                                                            .thenReturn(item);
+                                                })
+                                                : Mono.empty()
+                                )
+                                .flatMap(item -> recalculateCartTotal(cart.getId()).thenReturn(item))
+                                .map(item -> {
+                                    return new ItemDto(
+                                            item.getId(),
+                                            item.getTitle(),
+                                            item.getDescription(),
+                                            item.getImgPath(),
+                                            item.getPrice(),
+                                            0
+                                    );
+                                })
+                );
     }
+
 
     /**
      * {@inheritDoc}
@@ -113,12 +96,34 @@ public class CartServiceImpl implements CartService {
     @Transactional
     @Override
     public Mono<CartDto> getItemsInTheCart() {
-        Cart cart = getCurrentCart();
-        log.info("Получение содержимого корзины: cartId={}, itemsCount={}", cart.getId(), cart.getItems().size());
+        return getCurrentCart()
+                .flatMap(cart ->
+                        cartItemRepository.findAllByCartId(cart.getId())
+                                .flatMap(cartItem ->
+                                        itemRepository.findById(cartItem.getItemId())
+                                                .map(itemMapper::toDto)
+                                                .map(itemDto -> CartItemDto.builder()
+                                                        .item(itemDto)
+                                                        .count(cartItem.getCount())
+                                                        .price(cartItem.getPrice())
+                                                        .build()
+                                                )
+                                )
+                                .collectList()
+                                .map(itemsDto -> {
+                                    BigDecimal total = itemsDto.stream()
+                                            .map(i -> i.price().multiply(BigDecimal.valueOf(i.count())))
+                                            .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        CartDto cartDto = cartMapper.toDto(cart);
+                                    CartDto cartDto = cartMapper.toDto(cart);
 
-        return Mono.just(cartDto);
+                                    return CartDto.builder()
+                                            .id(cartDto.id())
+                                            .items(itemsDto)
+                                            .total(total)
+                                            .build();
+                                })
+                );
     }
 
     /**
@@ -129,35 +134,37 @@ public class CartServiceImpl implements CartService {
     public Mono<CartDto> changeNumberOfItemsFromCart(ChangeNumberOfItemsRequestDto request) {
         log.info("Запрошено изменение и получение корзины: request={}", request);
 
-        changeNumberOfItems(request);
-        Mono<CartDto> result = getItemsInTheCart();
-
-        log.debug("Возврат DTO корзины: {}", result);
-
-        return result;
+        return changeNumberOfItems(request)
+                .doOnNext(item -> log.debug("Изменение товара выполнено: itemId={}", item.id()))
+                .switchIfEmpty(Mono.error(new NoSuchElementException("Товар не найден для изменения")))
+                .then(getItemsInTheCart())
+                .doOnNext(cart -> log.debug("Возврат DTO корзины: {}", cart));
     }
 
-    private void recalculateCartTotal(Cart cart) {
-        BigDecimal total = BigDecimal.ZERO;
-
-        for (CartItem ci : cart.getItems()) {
-            total = total.add(ci.getPrice().multiply(BigDecimal.valueOf(ci.getCount())));
-            log.trace("Считаем позицию корзины: itemId={}, price={}, count={}", ci.getItem().getId(), ci.getPrice(), ci.getCount());
-        }
-        cart.setTotal(total);
-
-        log.debug("Итого стоимость корзины: {}", total);
+    public Mono<Void> recalculateCartTotal(Long cartId) {
+        return cartItemRepository.findAllByCartId(cartId)
+                .flatMap(cartItem -> itemRepository.findById(cartItem.getItemId())
+                        .map(item -> cartItem.getPrice().multiply(BigDecimal.valueOf(cartItem.getCount())))
+                )
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .flatMap(total -> cartRepository.findById(cartId)
+                        .flatMap(cart -> {
+                            cart.setTotal(total);
+                            return cartRepository.save(cart);
+                        })
+                ).then();
     }
 
-    private Cart getCurrentCart() {
-        Cart cart = cartRepository.findAll().stream().findFirst()
-                .orElseGet(() -> {
-                    log.info("Корзина не найдена. Создаём новую корзину.");
-                    return cartRepository.save(new Cart());
-                });
-
-        log.debug("Используется корзина: cartId={}", cart.getId());
-
-        return cart;
+    private Mono<Cart> getCurrentCart() {
+        return cartRepository.findAll()
+                .take(1)
+                .singleOrEmpty()
+                .doOnNext(cart -> log.debug("Используется корзина: cartId={}", cart.getId()))
+                .switchIfEmpty(
+                        Mono.defer(() -> {
+                            log.info("Корзина не найдена. Создаём новую корзину.");
+                            return cartRepository.save(new Cart());
+                        })
+                );
     }
 }

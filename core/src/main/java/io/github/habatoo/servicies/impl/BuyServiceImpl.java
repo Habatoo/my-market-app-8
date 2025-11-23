@@ -1,22 +1,22 @@
 package io.github.habatoo.servicies.impl;
 
-import io.github.habatoo.entity.Cart;
 import io.github.habatoo.entity.CartItem;
+import io.github.habatoo.entity.Item;
 import io.github.habatoo.entity.Order;
 import io.github.habatoo.entity.OrderItem;
-import io.github.habatoo.repositories.CartItemRepository;
-import io.github.habatoo.repositories.CartRepository;
-import io.github.habatoo.repositories.OrderItemRepository;
-import io.github.habatoo.repositories.OrderRepository;
+import io.github.habatoo.repositories.*;
 import io.github.habatoo.servicies.BuyService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple3;
+import reactor.util.function.Tuples;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Реализация для осуществления покупки.
@@ -24,73 +24,92 @@ import java.util.List;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class BuyServiceImpl implements BuyService {
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
-
-    public BuyServiceImpl(OrderRepository orderRepository,
-                          OrderItemRepository orderItemRepository,
-                          CartRepository cartRepository,
-                          CartItemRepository cartItemRepository) {
-        this.orderRepository = orderRepository;
-        this.orderItemRepository = orderItemRepository;
-        this.cartRepository = cartRepository;
-        this.cartItemRepository = cartItemRepository;
-    }
+    private final ItemRepository itemRepository;
 
     /**
      * {@inheritDoc}
      */
     @Transactional
     @Override
-    public void buy(Long cartId) {
+    public Mono<Void> buy(Long cartId) {
+
         log.debug("Получение корзины id={}", cartId);
-        Cart cart = cartRepository.findById(cartId)
-                .orElseThrow(() -> new IllegalStateException("Корзина с id=%d не найдена".formatted(cartId)));
-        log.info("Корзина успешно получена: id={}, itemsCount={}", cartId, cart.getItems().size());
 
-        Order order = new Order();
-        order.setDateTime(LocalDateTime.now());
-        List<OrderItem> orderItems = new ArrayList<>();
-        BigDecimal totalSum = BigDecimal.ZERO;
+        return cartRepository.findById(cartId)
+                .switchIfEmpty(Mono.error(new IllegalStateException(
+                        "Корзина с id=%d не найдена".formatted(cartId)
+                )))
+                .flatMap(cart ->
 
-        for (CartItem cartItem : cart.getItems()) {
-            int count = cartItem.getCount();
-            BigDecimal price = cartItem.getPrice();
+                        cartItemRepository.findAllByCartId(cart.getId())
+                                .flatMap(cartItem ->
+                                        itemRepository.findById(cartItem.getItemId())
+                                                .switchIfEmpty(Mono.error(new IllegalStateException(
+                                                        "Товар id=%d не найден".formatted(cartItem.getItemId())
+                                                )))
+                                                .map(item -> Tuples.of(
+                                                        cartItem,
+                                                        item,
+                                                        cartItem.getPrice().multiply(BigDecimal.valueOf(cartItem.getCount()))
+                                                ))
+                                )
+                                .collectList()
+                                .flatMap(tuples -> {
 
-            OrderItem orderItem = new OrderItem();
-            orderItem.setOrder(order);
-            orderItem.setItem(cartItem.getItem());
-            orderItem.setCount(count);
-            orderItem.setPrice(price);
+                                    Order order = new Order();
+                                    order.setDateTime(LocalDateTime.now());
+                                    order.setTotalSum(
+                                            tuples.stream()
+                                                    .map(Tuple3::getT3)
+                                                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                                    );
 
-            BigDecimal itemSum = price.multiply(BigDecimal.valueOf(count));
-            totalSum = totalSum.add(itemSum);
-            orderItems.add(orderItem);
+                                    log.info("Итоговая сумма заказа: {}", order.getTotalSum());
 
-            log.debug("Создан заказанный товар: itemId={}, count={}, itemSum={}", cartItem.getItem().getId(), count, itemSum);
-        }
-        order.setItems(orderItems);
-        order.setTotalSum(totalSum);
+                                    return orderRepository.save(order)
+                                            .flatMap(savedOrder -> {
 
-        log.info("Итоговая сумма заказа: {}", totalSum);
+                                                log.info("Заказ сохранён: orderId={}", savedOrder.getId());
 
-        orderRepository.save(order);
-        log.info("Заказ сохранен: orderId={}, itemsCount={}", order.getId(), orderItems.size());
+                                                return Flux.fromIterable(tuples)
+                                                        .flatMap(tuple -> {
 
-        orderItems.forEach(orderItem -> {
-            orderItemRepository.save(orderItem);
-            log.debug("Товар заказа сохранен: itemId={}, orderId={}", orderItem.getItem().getId(), order.getId());
-        });
+                                                            CartItem cartItem = tuple.getT1();
+                                                            Item item = tuple.getT2();
+                                                            BigDecimal itemSum = tuple.getT3();
 
-        cartItemRepository.deleteAll(cart.getItems());
-        log.debug("Товары корзины удалены: cartId={}, count={}", cartId, orderItems.size());
-        cart.getItems().clear();
-        cart.setTotal(BigDecimal.ZERO);
-        cartRepository.save(cart);
-        log.info("Корзина очищена и сохранена: cartId={}", cartId);
+                                                            OrderItem oi = new OrderItem();
+                                                            oi.setOrderId(savedOrder.getId());
+                                                            oi.setItemId(item.getId());
+                                                            oi.setCount(cartItem.getCount());
+                                                            oi.setPrice(cartItem.getPrice());
+
+                                                            log.debug(
+                                                                    "Создан заказанный товар: itemId={}, count={}, itemSum={}",
+                                                                    item.getId(), cartItem.getCount(), itemSum
+                                                            );
+
+                                                            return orderItemRepository.save(oi);
+                                                        })
+                                                        .then(
+                                                                cartItemRepository.deleteAllByCartId(cart.getId())
+                                                        )
+                                                        .then(
+                                                                Mono.defer(() -> {
+                                                                    cart.setTotal(BigDecimal.ZERO);
+                                                                    return cartRepository.save(cart);
+                                                                })
+                                                        );
+                                            });
+                                })
+
+                ).then();
     }
 }
