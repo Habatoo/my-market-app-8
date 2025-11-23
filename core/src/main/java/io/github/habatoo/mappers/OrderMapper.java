@@ -4,19 +4,17 @@ import io.github.habatoo.dto.response.OrderDto;
 import io.github.habatoo.entity.Order;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-import org.mapstruct.MappingConstants;
-
-import java.util.List;
+import org.mapstruct.ReportingPolicy;
 
 @Mapper(
-        componentModel = MappingConstants.ComponentModel.SPRING,
-        uses = {OrderItemMapper.class}
+        componentModel = "spring",
+        uses = {OrderItemMapper.class},
+        unmappedTargetPolicy = ReportingPolicy.IGNORE
 )
 public interface OrderMapper {
-    List<OrderDto> toDto(List<Order> entities);
 
     @Mapping(target = "id", source = "id")
-    @Mapping(target = "items", source = "items")
+    @Mapping(target = "items", ignore = true)
     @Mapping(target = "totalSum", source = "totalSum")
     @Mapping(target = "dateTime", source = "dateTime")
     OrderDto toDto(Order entity);
