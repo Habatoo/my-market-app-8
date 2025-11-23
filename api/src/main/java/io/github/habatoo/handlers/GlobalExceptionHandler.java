@@ -60,17 +60,23 @@ public class GlobalExceptionHandler {
 
     /**
      * Глобальная обработка отсутствия данных при поиске.
-     * Возвращает страницу общей ошибки (500).
+     * Возвращает страницу ошибки с отображением реального сообщения.
      */
     @ExceptionHandler(IllegalStateException.class)
     public Mono<String> handleIllegalStateException(IllegalStateException e, Model model) {
-        log.error("Некорректное состояние [{}]: {}", e.getClass().getSimpleName(), e.getMessage(), e);
+        log.error("Ошибка обработки [{}]: {}", e.getClass().getSimpleName(), e.getMessage(), e);
 
-        model.addAttribute("error", "Корзина не найдена");
+        String message = e.getMessage();
+        if (message == null || message.isBlank()) {
+            message = "Внутренняя ошибка сервера";
+        }
+
+        model.addAttribute("error", message);
         model.addAttribute("status", 500);
 
         return Mono.just("error/500");
     }
+
 
     /**
      * Глобальная обработка всех прочих (непредвиденных) исключений.

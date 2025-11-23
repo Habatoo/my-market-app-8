@@ -106,7 +106,7 @@ class GlobalExceptionHandlerTest {
                 .expectNext("error/500")
                 .verifyComplete();
 
-        verify(model).addAttribute("error", "Корзина не найдена");
+        verify(model).addAttribute("error", "Корзина отсутствует");
         verify(model).addAttribute("status", 500);
     }
 
