@@ -154,17 +154,15 @@ class ItemControllerTest {
                 .verifyComplete();
 
         verify(itemService).changeNumberOfItemsFromPage(eq(req));
-        verify(model).addAttribute("item", itemResponse);
+        verify(model).addAttribute("item", itemResponse.item());
         verify(model).addAttribute("cartCount", itemResponse.cartCount());
     }
 
     @ParameterizedTest
     @MethodSource("redirectParams")
-    @DisplayName("POST /changeNumberOfItems — все варианты формирования redirect")
+    @DisplayName("POST /changeNumberOfItems — проверка всех комбинаций формирования redirect")
     void changeNumberOfItemsRedirectTest(
             String search, Sort sort, Integer pageNumber, Integer pageSize,
-            String expectedSearch, String expectedSort,
-            int expectedPageSize, int expectedPageNumber,
             String expectedRedirect
     ) {
         ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
@@ -174,38 +172,51 @@ class ItemControllerTest {
                 .pageNumber(pageNumber)
                 .build();
 
-        when(cartService.changeNumberOfItems(eq(req))).thenReturn(Mono.just(mock(ItemDto.class)));
+        BindingResult binding = mock(BindingResult.class);
 
-        Mono<String> redirectMono = itemController.changeNumberOfItems(req, mock(BindingResult.class));
+        when(cartService.changeNumberOfItems(any(ChangeNumberOfItemsRequestDto.class)))
+                .thenReturn(Mono.just(mock(ItemDto.class)));
+
+        Mono<String> redirectMono = itemController.changeNumberOfItems(req, binding);
 
         StepVerifier.create(redirectMono)
                 .expectNext(expectedRedirect)
                 .verifyComplete();
 
-        verify(cartService).changeNumberOfItems(argThat(requestDto ->
-                Objects.equals(requestDto.getSearch(), req.getSearch()) &&
-                        requestDto.getSort() == req.getSort() &&
-                        Objects.equals(requestDto.getPageNumber(), req.getPageNumber()) &&
-                        Objects.equals(requestDto.getPageSize(), req.getPageSize())
+        verify(cartService).changeNumberOfItems(argThat(dto ->
+                Objects.equals(dto.getSearch(), search) &&
+                        dto.getSort() == sort &&
+                        Objects.equals(dto.getPageNumber(), pageNumber) &&
+                        Objects.equals(dto.getPageSize(), pageSize)
         ));
     }
 
-    static Stream<Arguments> redirectParams() {
+    private static Stream<Arguments> redirectParams() {
         return Stream.of(
-                Arguments.of(null, null, null, null, "", "NO", 5, 1,
+                Arguments.of(null, null, null, null,
                         "redirect:/items?search=&sort=NO&pageSize=5&pageNumber=1"),
-                Arguments.of("", Sort.NO, 1, 5, "", "NO", 5, 1,
-                        "redirect:/items?search=&sort=NO&pageSize=5&pageNumber=1"),
-                Arguments.of("поиск", Sort.ALPHA, 2, 10, "поиск", "ALPHA", 10, 2,
-                        "redirect:/items?search=поиск&sort=ALPHA&pageSize=10&pageNumber=2"),
-                Arguments.of("   ", Sort.PRICE, null, null, "   ", "PRICE", 5, 1,
-                        "redirect:/items?search=   &sort=PRICE&pageSize=5&pageNumber=1"),
-                Arguments.of(null, null, null, 2, "", "NO", 2, 1,
-                        "redirect:/items?search=&sort=NO&pageSize=2&pageNumber=1"),
-                Arguments.of(null, null, 3, null, "", "NO", 5, 3,
+                Arguments.of("phone", null, null, null,
+                        "redirect:/items?search=phone&sort=NO&pageSize=5&pageNumber=1"),
+                Arguments.of(null, Sort.PRICE, null, null,
+                        "redirect:/items?search=&sort=PRICE&pageSize=5&pageNumber=1"),
+                Arguments.of(null, null, 3, null,
                         "redirect:/items?search=&sort=NO&pageSize=5&pageNumber=3"),
-                Arguments.of("text", Sort.NO, null, null, "text", "NO", 5, 1,
-                        "redirect:/items?search=text&sort=NO&pageSize=5&pageNumber=1")
+                Arguments.of(null, null, null, 20,
+                        "redirect:/items?search=&sort=NO&pageSize=20&pageNumber=1"),
+                Arguments.of("text", Sort.ALPHA, null, null,
+                        "redirect:/items?search=text&sort=ALPHA&pageSize=5&pageNumber=1"),
+                Arguments.of("book", null, 2, null,
+                        "redirect:/items?search=book&sort=NO&pageSize=5&pageNumber=2"),
+                Arguments.of("note", null, null, 9,
+                        "redirect:/items?search=note&sort=NO&pageSize=9&pageNumber=1"),
+                Arguments.of(null, Sort.PRICE, 2, 50,
+                        "redirect:/items?search=&sort=PRICE&pageSize=50&pageNumber=2"),
+                Arguments.of("laptop", Sort.ALPHA, 1, 10,
+                        "redirect:/items?search=laptop&sort=ALPHA&pageSize=10&pageNumber=1"),
+                Arguments.of("", Sort.NO, 5, 15,
+                        "redirect:/items?search=&sort=NO&pageSize=15&pageNumber=5"),
+                Arguments.of("   ", Sort.PRICE, null, null,
+                        "redirect:/items?search=   &sort=PRICE&pageSize=5&pageNumber=1")
         );
     }
 

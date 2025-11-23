@@ -112,9 +112,11 @@ public class ItemController {
 
         return itemService.getItem(id)
                 .switchIfEmpty(Mono.error(new NoSuchElementException("Товар не найден")))
-                .doOnNext(item -> model.addAttribute(ITEM, item.item()))
-                .doOnNext(item -> model.addAttribute("cartCount", item.cartCount()))
-                .map(item -> ITEM);
+                .doOnNext(item -> {
+                    model.addAttribute(ITEM, item.item());
+                    model.addAttribute("cartCount", item.cartCount());
+                })
+                .thenReturn(ITEM);
     }
 
     /**
@@ -136,7 +138,7 @@ public class ItemController {
 
         return itemService.changeNumberOfItemsFromPage(req)
                 .switchIfEmpty(Mono.error(new NoSuchElementException("Товар для изменения не найден")))
-                .doOnNext(item -> model.addAttribute(ITEM, item))
+                .doOnNext(item -> model.addAttribute(ITEM, item.item()))
                 .doOnNext(item -> model.addAttribute("cartCount", item.cartCount()))
                 .map(item -> ITEM);
     }
