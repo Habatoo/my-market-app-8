@@ -9,6 +9,7 @@ repositories {
 
 dependencies {
     implementation platform(project(':bom'))
+    annotationProcessor platform(project(":bom"))
     implementation platform('org.springframework.boot:spring-boot-dependencies:3.5.8')
 
     implementation project(':core')
@@ -22,6 +23,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     compileOnly 'org.projectlombok:lombok'
     runtimeOnly 'org.postgresql:postgresql'
+    implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
     annotationProcessor 'org.projectlombok:lombok'
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
 
