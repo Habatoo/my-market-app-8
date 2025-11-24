@@ -15,10 +15,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -41,41 +38,72 @@ public class ItemServiceImpl implements ItemService {
      */
     @Override
     public Mono<ItemsDtoResponse> getItems(GetItemsRequestDto request) {
-        log.debug("Запрошено получение товаров: request={}", request);
-
-        Mono<CartDto> cartMono = obtainCart();
+        Mono<CartDto> cartMono = cartService.getItemsInTheCart();
 
         return repository.findAll()
                 .collectList()
-                .map(allItems -> {
-
-                    List<Item> filtered = allItems;
-
+                .map(all -> {
+                    List<Item> filtered = all;
                     if (request.getSearch() != null && !request.getSearch().isBlank()) {
-                        filtered = getFiltered(request, filtered);
+                        String lower = request.getSearch().trim().toLowerCase();
+                        filtered = filtered.stream()
+                                .filter(i -> i.getTitle().toLowerCase().contains(lower)
+                                        || (i.getDescription() != null && i.getDescription().toLowerCase().contains(lower)))
+                                .toList();
                     }
 
                     if (request.getSort() != null) {
-                        filtered = getItemList(request, filtered);
+                        switch (request.getSort()) {
+                            case ALPHA -> filtered = filtered.stream().sorted(Comparator.comparing(Item::getTitle)).toList();
+                            case PRICE -> filtered = filtered.stream().sorted(Comparator.comparing(Item::getPrice)).toList();
+                            default -> {}
+                        }
                     }
 
-                    return getResult(request, filtered);
+                    int pageSize = request.getPageSize() != null ? request.getPageSize() : 5;
+                    int pageNumber = request.getPageNumber() != null ? request.getPageNumber() : 1;
+                    int from = (pageNumber - 1) * pageSize;
+                    int to = Math.min(from + pageSize, filtered.size());
+                    List<Item> page = from < filtered.size() ? filtered.subList(from, to) : Collections.emptyList();
+
+                    List<ItemDto> itemDtos = mapper.toDto(page);
+                    List<List<ItemDto>> itemsRows = splitByRows(itemDtos, 3);
+
+                    Paging paging = Paging.builder()
+                            .total(filtered.size())
+                            .pageSize(pageSize)
+                            .pageNumber(pageNumber)
+                            .hasPrevious(pageNumber > 1)
+                            .hasNext(pageNumber * pageSize < filtered.size())
+                            .build();
+
+                    return new Object[]{itemsRows, itemDtos, paging};
                 })
-                .zipWith(cartMono)
-                .flatMap(tuple -> {
+                .flatMap(arr -> {
+                    @SuppressWarnings("unchecked")
+                    List<List<ItemDto>> itemsRows = (List<List<ItemDto>>) arr[0];
+                    @SuppressWarnings("unchecked")
+                    List<ItemDto> itemDtos = (List<ItemDto>) arr[1];
+                    Paging paging = (Paging) arr[2];
 
-                    Result result = tuple.getT1();
-                    CartDto cart = tuple.getT2();
-
-                    return obtainItemCounts(result.items(), cart.id())
-                            .map(itemCounts ->
-                                    ItemsDtoResponse.builder()
-                                            .itemsRows(result.itemsRows())
-                                            .cart(cart)
-                                            .paging(result.paging())
-                                            .itemCounts(itemCounts)
-                                            .build()
-                            );
+                    return cartMono.flatMap(cart -> {
+                        Long cartId = cart.id();
+                        // получить map itemId->count реактивно
+                        return Flux.fromIterable(itemDtos)
+                                .flatMap(itemDto ->
+                                        cartItemRepository.findCountByCartIdAndItemId(cartId, itemDto.id())
+                                                .defaultIfEmpty(0)
+                                                .map(cnt -> Map.entry(itemDto.id(), cnt))
+                                )
+                                .collectMap(Map.Entry::getKey, Map.Entry::getValue)
+                                .map(itemCounts -> ItemsDtoResponse.builder()
+                                        .itemsRows(itemsRows)
+                                        .cart(cart)
+                                        .paging(paging)
+                                        .itemCounts(itemCounts)
+                                        .build()
+                                );
+                    });
                 });
     }
 
@@ -84,34 +112,23 @@ public class ItemServiceImpl implements ItemService {
      */
     @Override
     public Mono<ItemDtoResponse> getItem(Long id) {
-        log.debug("Запрошено получение товара по id={}", id);
-
         Mono<ItemDto> itemMono = repository.findById(id)
-                .switchIfEmpty(Mono.error(new IllegalStateException(
-                        "Товар с id=%d не найден".formatted(id)
-                )))
-                .doOnNext(item -> log.debug("Товар найден: {}", item))
+                .switchIfEmpty(Mono.error(new IllegalStateException("Товар с id=" + id + " не найден")))
                 .map(mapper::toDto);
 
-        Mono<CartDto> cartMono = obtainCart();
+        Mono<CartDto> cartMono = cartService.getItemsInTheCart();
 
-        return itemMono
-                .zipWith(cartMono)
+        return itemMono.zipWith(cartMono)
                 .flatMap(tuple -> {
                     ItemDto itemDto = tuple.getT1();
                     CartDto cart = tuple.getT2();
                     Long cartId = cart.id();
-
                     return cartItemRepository.findCountByCartIdAndItemId(cartId, id)
                             .defaultIfEmpty(0)
-                            .map(cartCount -> {
-                                log.info("Товар получен: id={}, в корзине={}", id, cartCount);
-
-                                return ItemDtoResponse.builder()
-                                        .item(itemDto)
-                                        .cartCount(cartCount)
-                                        .build();
-                            });
+                            .map(cnt -> ItemDtoResponse.builder()
+                                    .item(itemDto)
+                                    .cartCount(cnt)
+                                    .build());
                 });
     }
 
@@ -120,123 +137,33 @@ public class ItemServiceImpl implements ItemService {
      */
     @Override
     public Mono<ItemDtoResponse> changeNumberOfItemsFromPage(ChangeNumberOfItemsRequestDto request) {
-        log.debug("Запрошено изменение товаров из страницы: request={}", request);
-
         return cartService.changeNumberOfItems(request)
-                .zipWith(obtainCart())
+                .zipWith(cartService.getItemsInTheCart())
                 .flatMap(tuple -> {
                     ItemDto item = tuple.getT1();
                     CartDto cart = tuple.getT2();
                     Long cartId = cart.id();
-
-                    return getCartCount(cartId, request.getId())
+                    return cartItemRepository.findCountByCartIdAndItemId(cartId, item.id())
                             .defaultIfEmpty(0)
-                            .map(cartCount -> {
-                                log.info("Изменение количества товара itemId={}, newCount={}",
-                                        request.getId(), cartCount);
-
-                                return ItemDtoResponse.builder()
-                                        .item(item)
-                                        .cartCount(cartCount)
-                                        .build();
-                            });
+                            .map(cnt -> ItemDtoResponse.builder()
+                                    .item(item)
+                                    .cartCount(cnt)
+                                    .build());
                 });
-    }
-
-    private Mono<Integer> getCartCount(Long cartId, Long id) {
-        return cartItemRepository.findCountByCartIdAndItemId(cartId, id);
-    }
-
-    private Mono<Map<Long, Integer>> obtainItemCounts(List<ItemDto> items, Long cartId) {
-        return Flux.fromIterable(items)
-                .flatMap(item ->
-                        cartItemRepository.findCountByCartIdAndItemId(cartId, item.id())
-                                .defaultIfEmpty(0)
-                                .map(count -> Map.entry(item.id(), count))
-                )
-                .collectMap(Map.Entry::getKey, Map.Entry::getValue);
     }
 
     private List<List<ItemDto>> splitByRows(List<ItemDto> items, int rowSize) {
         int totalRows = (int) Math.ceil((double) items.size() / rowSize);
-        log.debug(
-                "splitByRows: itemsTotal={}, rowSize={}, totalRows={}",
-                items.size(), rowSize, totalRows);
-
         return IntStream.range(0, totalRows)
-                .mapToObj(i -> getSubList(items, rowSize, i))
-                .map(subList -> getDtoList(rowSize, subList))
+                .mapToObj(i -> {
+                    int from = i * rowSize;
+                    int to = Math.min(items.size(), (i + 1) * rowSize);
+                    List<ItemDto> sub = new ArrayList<>(items.subList(from, to));
+                    while (sub.size() < rowSize) {
+                        sub.add(new ItemDto(-1L, "", "", "", null, 0));
+                    }
+                    return sub;
+                })
                 .collect(Collectors.toList());
-    }
-
-    private List<ItemDto> getSubList(List<ItemDto> items, int rowSize, int i) {
-        List<ItemDto> result = items.subList(i * rowSize, Math.min(items.size(), (i + 1) * rowSize));
-        log.trace(
-                "getSubList: from={}, to={}, size={}",
-                i * rowSize, Math.min(items.size(), (i + 1) * rowSize), result.size());
-        return result;
-    }
-
-    private List<ItemDto> getDtoList(int rowSize, List<ItemDto> subList) {
-        List<ItemDto> list = new ArrayList<>(subList);
-        while (list.size() < rowSize) {
-            list.add(new ItemDto(-1L, "", "", "", null, 0));
-        }
-        log.trace("getDtoList: rowSize={}, filledSize={}", rowSize, list.size());
-
-        return list;
-    }
-
-    private Mono<CartDto> obtainCart() {
-        return cartService.getItemsInTheCart();
-    }
-
-    private List<Item> getItemList(GetItemsRequestDto request, List<Item> filtered) {
-        switch (request.getSort()) {
-            case ALPHA -> filtered = filtered.stream()
-                    .sorted(Comparator.comparing(Item::getTitle))
-                    .toList();
-            case PRICE -> filtered = filtered.stream()
-                    .sorted(Comparator.comparing(Item::getPrice))
-                    .toList();
-        }
-        return filtered;
-    }
-
-    private List<Item> getFiltered(GetItemsRequestDto request, List<Item> filtered) {
-        String lower = request.getSearch().trim().toLowerCase();
-        filtered = filtered.stream()
-                .filter(i -> i.getTitle().toLowerCase().contains(lower)
-                        || (i.getDescription() != null
-                        && i.getDescription().toLowerCase().contains(lower)))
-                .toList();
-
-        return filtered;
-    }
-
-    private Result getResult(GetItemsRequestDto request, List<Item> filtered) {
-        int pageSize = request.getPageSize() != null ? request.getPageSize() : 5;
-        int pageNumber = request.getPageNumber() != null ? request.getPageNumber() : 1;
-
-        int total = filtered.size();
-        int from = Math.max((pageNumber - 1) * pageSize, 0);
-        int to = Math.min(from + pageSize, total);
-
-        List<Item> page = from < total ? filtered.subList(from, to) : List.of();
-        List<ItemDto> items = mapper.toDto(page);
-        List<List<ItemDto>> itemsRows = splitByRows(items, 3);
-
-        Paging paging = Paging.builder()
-                .total(total)
-                .pageSize(pageSize)
-                .pageNumber(pageNumber)
-                .hasPrevious(pageNumber > 1)
-                .hasNext(pageNumber * pageSize < total)
-                .build();
-
-        return new Result(items, itemsRows, paging);
-    }
-
-    private record Result(List<ItemDto> items, List<List<ItemDto>> itemsRows, Paging paging) {
     }
 }

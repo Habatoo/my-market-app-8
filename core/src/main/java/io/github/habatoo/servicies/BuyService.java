@@ -15,5 +15,5 @@ public interface BuyService {
      *
      * @param id идентификатор заказа
      */
-    Mono<Void> buy(Long id);
+    Mono<Long> buy(Long id);
 }

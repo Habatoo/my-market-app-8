@@ -21,6 +21,7 @@ import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 
 /**
  * Реализация для работы с корзиной.
@@ -34,7 +35,6 @@ public class CartServiceImpl implements CartService {
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final ItemRepository itemRepository;
-    private final CartMapper cartMapper;
     private final ItemMapper itemMapper;
 
     /**
@@ -48,44 +48,41 @@ public class CartServiceImpl implements CartService {
         return getCurrentCart()
                 .flatMap(cart ->
                         cartItemRepository.findAllByCartId(cart.getId())
-                                .filter(ci -> ci.getItemId().equals(itemId))
+                                .filter(ci -> Objects.equals(ci.getItemId(), itemId))
                                 .next()
-                                .flatMap(cartItem -> {
-                                    int newCount = cartItem.getCount() + (request.getAction() == Action.PLUS ? 1 : -1);
+                                .flatMap(existingCi -> {
+                                    int newCount = existingCi.getCount() + (request.getAction() == Action.PLUS ? 1 : -1);
                                     if (newCount > 0) {
-                                        cartItem.setCount(newCount);
-                                        return cartItemRepository.save(cartItem)
-                                                .flatMap(savedCartItem -> itemRepository.findById(
-                                                        savedCartItem.getItemId()));
+                                        existingCi.setCount(newCount);
+                                        return cartItemRepository.save(existingCi)
+                                                .flatMap(saved -> itemRepository.findById(saved.getItemId()))
+                                                .map(itemMapper::toDto);
                                     } else {
-                                        return cartItemRepository.delete(cartItem).then(Mono.empty());
+                                        return cartItemRepository.delete(existingCi)
+                                                .then(recalcAndSaveCartTotal(cart.getId()))
+                                                .then(itemRepository.findById(existingCi.getItemId())
+                                                        .map(itemMapper::toDto)
+                                                        .defaultIfEmpty(toDeletedItemDto(existingCi.getItemId()))
+                                                );
                                     }
                                 })
                                 .switchIfEmpty(
                                         request.getAction() == Action.PLUS
                                                 ? itemRepository.findById(itemId)
+                                                .switchIfEmpty(Mono.error(
+                                                        new NoSuchElementException("Товар с id=" + itemId + " не найден")))
                                                 .flatMap(item -> {
-                                                    CartItem newCartItem = new CartItem();
-                                                    newCartItem.setCartId(cart.getId());
-                                                    newCartItem.setItemId(item.getId());
-                                                    newCartItem.setCount(1);
-                                                    newCartItem.setPrice(item.getPrice());
-                                                    return cartItemRepository.save(newCartItem)
-                                                            .thenReturn(item);
+                                                    CartItem newCi = new CartItem();
+                                                    newCi.setCartId(cart.getId());
+                                                    newCi.setItemId(item.getId());
+                                                    newCi.setCount(1);
+                                                    newCi.setPrice(item.getPrice());
+                                                    return cartItemRepository.save(newCi)
+                                                            .then(recalcAndSaveCartTotal(cart.getId()))
+                                                            .thenReturn(itemMapper.toDto(item));
                                                 })
-                                                : Mono.empty()
+                                                : Mono.error(new NoSuchElementException("Товар для изменения не найден"))
                                 )
-                                .flatMap(item -> recalculateCartTotal(cart.getId()).thenReturn(item))
-                                .map(item -> {
-                                    return new ItemDto(
-                                            item.getId(),
-                                            item.getTitle(),
-                                            item.getDescription(),
-                                            item.getImgPath(),
-                                            item.getPrice(),
-                                            0
-                                    );
-                                })
                 );
     }
 
@@ -93,19 +90,19 @@ public class CartServiceImpl implements CartService {
     /**
      * {@inheritDoc}
      */
-    @Transactional
+    @Transactional(readOnly = true)
     @Override
     public Mono<CartDto> getItemsInTheCart() {
         return getCurrentCart()
                 .flatMap(cart ->
                         cartItemRepository.findAllByCartId(cart.getId())
-                                .flatMap(cartItem ->
-                                        itemRepository.findById(cartItem.getItemId())
+                                .flatMap(ci ->
+                                        itemRepository.findById(ci.getItemId())
                                                 .map(itemMapper::toDto)
                                                 .map(itemDto -> CartItemDto.builder()
                                                         .item(itemDto)
-                                                        .count(cartItem.getCount())
-                                                        .price(cartItem.getPrice())
+                                                        .count(ci.getCount())
+                                                        .price(ci.getPrice())
                                                         .build()
                                                 )
                                 )
@@ -115,10 +112,8 @@ public class CartServiceImpl implements CartService {
                                             .map(i -> i.price().multiply(BigDecimal.valueOf(i.count())))
                                             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-                                    CartDto cartDto = cartMapper.toDto(cart);
-
                                     return CartDto.builder()
-                                            .id(cartDto.id())
+                                            .id(cart.getId())
                                             .items(itemsDto)
                                             .total(total)
                                             .build();
@@ -132,39 +127,34 @@ public class CartServiceImpl implements CartService {
     @Transactional
     @Override
     public Mono<CartDto> changeNumberOfItemsFromCart(ChangeNumberOfItemsRequestDto request) {
-        log.info("Запрошено изменение и получение корзины: request={}", request);
-
         return changeNumberOfItems(request)
-                .doOnNext(item -> log.debug("Изменение товара выполнено: itemId={}", item.id()))
-                .switchIfEmpty(Mono.error(new NoSuchElementException("Товар не найден для изменения")))
-                .then(getItemsInTheCart())
-                .doOnNext(cart -> log.debug("Возврат DTO корзины: {}", cart));
+                .then(getItemsInTheCart());
     }
 
-    public Mono<Void> recalculateCartTotal(Long cartId) {
+    private Mono<Cart> getCurrentCart() {
+        return cartRepository.findAll()
+                .next()
+                .switchIfEmpty(Mono.defer(() -> {
+                    log.info("Корзина не найдена. Создаём новую корзину.");
+                    return cartRepository.save(new Cart());
+                }))
+                .doOnNext(c -> log.debug("Используется корзина: cartId={}", c.getId()));
+    }
+
+    private Mono<Void> recalcAndSaveCartTotal(Long cartId) {
         return cartItemRepository.findAllByCartId(cartId)
-                .flatMap(cartItem -> itemRepository.findById(cartItem.getItemId())
-                        .map(item -> cartItem.getPrice().multiply(BigDecimal.valueOf(cartItem.getCount())))
-                )
+                .map(ci -> ci.getPrice().multiply(BigDecimal.valueOf(ci.getCount())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .flatMap(total -> cartRepository.findById(cartId)
                         .flatMap(cart -> {
                             cart.setTotal(total);
                             return cartRepository.save(cart);
                         })
-                ).then();
+                )
+                .then();
     }
 
-    private Mono<Cart> getCurrentCart() {
-        return cartRepository.findAll()
-                .take(1)
-                .singleOrEmpty()
-                .doOnNext(cart -> log.debug("Используется корзина: cartId={}", cart.getId()))
-                .switchIfEmpty(
-                        Mono.defer(() -> {
-                            log.info("Корзина не найдена. Создаём новую корзину.");
-                            return cartRepository.save(new Cart());
-                        })
-                );
+    private ItemDto toDeletedItemDto(Long itemId) {
+        return new ItemDto(itemId, null, null, null, null, 0);
     }
 }

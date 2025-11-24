@@ -1,15 +1,19 @@
 package io.github.habatoo.servicies.impl;
 
+import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.dto.response.OrderDto;
-import io.github.habatoo.mappers.OrderMapper;
+import io.github.habatoo.dto.response.OrderItemDto;
+import io.github.habatoo.repositories.ItemRepository;
+import io.github.habatoo.repositories.OrderItemRepository;
 import io.github.habatoo.repositories.OrderRepository;
 import io.github.habatoo.servicies.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.math.BigDecimal;
 
 /**
  * Реализация для работы с заказами.
@@ -21,39 +25,79 @@ import reactor.core.publisher.Mono;
 public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
-    private final OrderMapper mapper;
+    private final OrderItemRepository orderItemRepository;
+    private final ItemRepository itemRepository;
 
     /**
-     * Получить список заказов с корректным расчетом сумм DTO
+     * {@inheritDoc}
      */
-    @Transactional(readOnly = true)
     @Override
     public Flux<OrderDto> getOrders() {
-        log.debug("Запрашивается список всех заказов");
-
         return orderRepository.findAll()
-                .doOnSubscribe(s -> log.debug("Начато получение заказов"))
-                .doOnNext(order -> log.trace("Получен Order: {}", order.getId()))
-                .map(mapper::toDto)
-                .doOnNext(dto -> log.trace("Сформирован OrderDto: {}", dto.id()))
-                .doOnComplete(() -> log.debug("Возврат списка DTO заказов завершён"));
+                .flatMap(order ->
+                        orderItemRepository.findAllByOrderId(order.getId())
+                                .flatMap(orderItem ->
+                                        itemRepository.findById(orderItem.getItemId())
+                                                .map(item -> OrderItemDto.builder()
+                                                        .item(new ItemDto(
+                                                                item.getId(),
+                                                                item.getTitle(),
+                                                                item.getDescription(),
+                                                                item.getImgPath(),
+                                                                item.getPrice(),
+                                                                0))
+                                                        .count(orderItem.getCount())
+                                                        .price(orderItem.getPrice())
+                                                        .total(orderItem.getPrice().multiply(
+                                                                BigDecimal.valueOf(orderItem.getCount())))
+                                                        .build()
+                                                )
+                                )
+                                .collectList()
+                                .map(orderItemsDto -> OrderDto.builder()
+                                        .id(order.getId())
+                                        .items(orderItemsDto)
+                                        .totalSum(order.getTotalSum())
+                                        .dateTime(order.getDateTime())
+                                        .build()
+                                )
+                );
     }
 
     /**
-     * Получить конкретный заказ по id
+     * {@inheritDoc}
      */
-    @Transactional(readOnly = true)
     @Override
     public Mono<OrderDto> getOrder(Long id, boolean newOrder) {
-        log.debug("Запрошен заказ по id={}, newOrder={}", id, newOrder);
-
         return orderRepository.findById(id)
-                .switchIfEmpty(Mono.error(new IllegalStateException("Заказ с id=%d не найден".formatted(id))))
-                .map(order -> {
-                    OrderDto dto = mapper.toDto(order);
-                    log.info("Заказ найден и преобразован: orderId={}, totalSum={}", dto.id(), dto.totalSum());
-
-                    return dto;
-                });
+                .switchIfEmpty(Mono.error(new IllegalStateException("Заказ с id=" + id + " не найден")))
+                .flatMap(order ->
+                        orderItemRepository.findAllByOrderId(order.getId())
+                                .flatMap(orderItem ->
+                                        itemRepository.findById(orderItem.getItemId())
+                                                .map(item -> OrderItemDto.builder()
+                                                        .item(new ItemDto(
+                                                                item.getId(),
+                                                                item.getTitle(),
+                                                                item.getDescription(),
+                                                                item.getImgPath(),
+                                                                item.getPrice(),
+                                                                0))
+                                                        .count(orderItem.getCount())
+                                                        .price(orderItem.getPrice())
+                                                        .total(orderItem.getPrice().multiply(
+                                                                BigDecimal.valueOf(orderItem.getCount())))
+                                                        .build()
+                                                )
+                                )
+                                .collectList()
+                                .map(orderItemsDto -> OrderDto.builder()
+                                        .id(order.getId())
+                                        .items(orderItemsDto)
+                                        .totalSum(order.getTotalSum())
+                                        .dateTime(order.getDateTime())
+                                        .build()
+                                )
+                );
     }
 }
