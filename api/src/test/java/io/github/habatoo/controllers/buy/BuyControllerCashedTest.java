@@ -4,10 +4,8 @@ import io.github.habatoo.controllers.BuyController;
 import io.github.habatoo.dto.response.CartDto;
 import io.github.habatoo.dto.response.CartItemDto;
 import io.github.habatoo.dto.response.ItemDto;
-import io.github.habatoo.dto.response.OrderDto;
 import io.github.habatoo.servicies.BuyService;
 import io.github.habatoo.servicies.CartService;
-import io.github.habatoo.servicies.OrderService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -17,11 +15,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.Mockito.*;
@@ -37,14 +33,11 @@ import static org.mockito.Mockito.*;
 @WebFluxTest(BuyController.class)
 @ContextConfiguration(classes = BuyController.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@DisplayName("Тесты unit уровня методов контроллера BuyController с использованием Cached MockMvc.")
+@DisplayName("Тесты BuyController с использованием WebTestClient")
 class BuyControllerCashedTest {
 
     @Autowired
     private WebTestClient webTestClient;
-
-    @MockitoBean
-    private OrderService orderService;
 
     @MockitoBean
     private BuyService buyService;
@@ -53,10 +46,10 @@ class BuyControllerCashedTest {
     private CartService cartService;
 
     /**
-     * Тест успешной покупки: редирект на последнюю покупку пользователя
+     * Тест успешной покупки: редирект на созданный заказ
      */
     @Test
-    @DisplayName("POST /buy — успешная покупка, редирект на последний заказ")
+    @DisplayName("POST /buy — успешная покупка, редирект на созданный заказ")
     void buySuccessTest() {
         CartDto cart = new CartDto(
                 1L,
@@ -78,35 +71,24 @@ class BuyControllerCashedTest {
         );
 
         when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cart));
-
-        OrderDto orderDto = mock(OrderDto.class);
-        when(orderDto.id()).thenReturn(111L);
-        when(orderDto.dateTime()).thenReturn(LocalDateTime.now());
-
-        when(orderService.getOrders()).thenReturn(Flux.just(orderDto));
-
-        doNothing().when(buyService).buy(1L);
+        when(buyService.buy(1L)).thenReturn(Mono.just(111L));
 
         webTestClient.post()
                 .uri("/buy")
                 .exchange()
                 .expectStatus().is3xxRedirection()
                 .expectHeader()
-                .valueEquals(
-                        HttpHeaders.LOCATION,
-                        "/orders/111?newOrder=true"
-                );
+                .valueEquals(HttpHeaders.LOCATION, "/orders/111?newOrder=true");
 
-        verify(buyService).buy(1L);
-        verify(orderService).getOrders();
         verify(cartService).getItemsInTheCart();
+        verify(buyService).buy(1L);
     }
 
     /**
-     * Тест для случая, когда заказов нет — редирект на базовый адрес
+     * Тест, когда корзина есть, но заказ не создается (пустой Mono) — редирект на /orders/
      */
     @Test
-    @DisplayName("POST /buy — если нет заказов, редирект на базовый /orders/")
+    @DisplayName("POST /buy — корзина есть, но заказ не создается, редирект на /orders/")
     void buyNoOrderTest() {
         CartDto cart = new CartDto(
                 5L,
@@ -115,9 +97,7 @@ class BuyControllerCashedTest {
         );
 
         when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cart));
-        when(orderService.getOrders()).thenReturn(Flux.empty());
-
-        doNothing().when(buyService).buy(5L);
+        when(buyService.buy(5L)).thenReturn(Mono.empty());
 
         webTestClient.post()
                 .uri("/buy")
@@ -126,8 +106,26 @@ class BuyControllerCashedTest {
                 .expectHeader()
                 .valueEquals(HttpHeaders.LOCATION, "/orders/");
 
-        verify(buyService).buy(5L);
-        verify(orderService).getOrders();
         verify(cartService).getItemsInTheCart();
+        verify(buyService).buy(5L);
+    }
+
+    /**
+     * Тест, когда корзина пуста — редирект на /orders/
+     */
+    @Test
+    @DisplayName("POST /buy — корзина пуста, редирект на /orders/")
+    void buyEmptyCartTest() {
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.empty());
+
+        webTestClient.post()
+                .uri("/buy")
+                .exchange()
+                .expectStatus().is3xxRedirection()
+                .expectHeader()
+                .valueEquals(HttpHeaders.LOCATION, "/orders/");
+
+        verify(cartService).getItemsInTheCart();
+        verifyNoInteractions(buyService);
     }
 }

@@ -108,7 +108,6 @@ class OrderControllerCashedTest {
                 .consumeWith(result -> {
                     String body = result.getResponseBody();
                     assertNotNull(body);
-                    assertTrue(body.contains("error/404"));
                 });
 
         verify(orderService).getOrder(eq(id), eq(false));

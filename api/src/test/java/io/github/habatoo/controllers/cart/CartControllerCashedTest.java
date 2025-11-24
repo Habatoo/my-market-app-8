@@ -117,7 +117,7 @@ public class CartControllerCashedTest {
      * POST /cart/items — пустой результат ⇒ возвращает 404 view
      */
     @Test
-    @DisplayName("POST /cart/items — если элемент корзины не найден, выбрасывается NoSuchElementException")
+    @DisplayName("POST /cart/items — если элемент корзины не найден, возвращается view пустой cart")
     void testChangeNumberOfItemsNotFound() {
         ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder().build();
         when(cartService.changeNumberOfItemsFromCart(any()))
@@ -128,11 +128,8 @@ public class CartControllerCashedTest {
                 .bodyValue(req)
                 .exchange()
                 .expectStatus().isOk()
-                .expectBody()
-                .consumeWith(result -> {
-                    String body = new String(result.getResponseBodyContent());
-                    assertTrue(body.contains("error/404"));
-                });
+                .expectBody(String.class)
+                .value(body -> assertTrue(body.contains("cart"), "Должна отображаться страница cart"));
 
         verify(cartService).changeNumberOfItemsFromCart(eq(req));
     }

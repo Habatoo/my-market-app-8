@@ -23,7 +23,6 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 /**
@@ -176,7 +175,7 @@ class ItemControllerCashedTest {
                 .expectBody(String.class)
                 .consumeWith(result -> {
                     String view = result.getResponseBody();
-                    assertTrue(view.contains("error/404"));
+                    assertEquals(ITEM, view);
                 });
 
         verify(itemService).getItem(999L);

@@ -3,12 +3,8 @@ package io.github.habatoo.controllers.root;
 import io.github.habatoo.controllers.RootRedirectController;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
-
-import java.net.URI;
 
 /**
  * Unit-тест для RootRedirectController.
@@ -27,12 +23,11 @@ class RootRedirectControllerTest {
     @Test
     @DisplayName("GET \"/\" — возвращает редирект на витрину /items")
     void testRedirectToItems() {
-        Mono<ResponseEntity<Void>> result = controller.redirectToItems();
+        Mono<String> result = controller.redirectToItems();
 
         StepVerifier.create(result)
                 .assertNext(response -> {
-                    assert response.getStatusCode() == HttpStatus.FOUND;
-                    assert (URI.create(REDIRECT).equals(response.getHeaders().getLocation()));
+                    assert REDIRECT.equals(response);
                 })
                 .verifyComplete();
     }

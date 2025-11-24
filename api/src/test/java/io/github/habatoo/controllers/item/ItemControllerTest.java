@@ -54,6 +54,7 @@ class ItemControllerTest {
      * Тест получения и отображения списка товаров с фильтрацией и пагинацией.
      * Проверяет добавление объектов в модель и возврат правильного имени шаблона.
      */
+    @ParameterizedTest
     @MethodSource("paramsCombinations")
     @DisplayName("GET /items — все варианты параметров (null, пустые, корректные)")
     void testGetItemsVariants(String search, Sort sort, Integer pageNumber, Integer pageSize) {

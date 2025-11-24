@@ -17,10 +17,7 @@ import reactor.test.StepVerifier;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.NoSuchElementException;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.Mockito.*;
 
 /**
@@ -93,46 +90,41 @@ class CartControllerTest {
     }
 
     /**
-     * GET /cart/items — если корзина пустая, должно выбросить NoSuchElementException
+     * GET /cart/items — если корзина не найдена, возвращается view "cart"
+     * и модель не изменяется.
      */
     @Test
-    @DisplayName("GET /cart/items — корзина не найдена, выбрасывается NoSuchElementException")
+    @DisplayName("GET /cart/items — корзина не найдена, возвращается view cart без изменения модели")
     void showCartNotFoundTest() {
-        when(cartService.getItemsInTheCart()).thenReturn(Mono.empty());
+        when(cartService.getItemsInTheCart())
+                .thenReturn(Mono.empty());
 
         Mono<String> result = cartController.showCart(model);
 
         StepVerifier.create(result)
-                .expectErrorSatisfies(throwable -> {
-                            assertInstanceOf(NoSuchElementException.class, throwable);
-                            assertEquals("Корзина не найдена", throwable.getMessage());
-                        }
-                )
-                .verify();
+                .expectNext("cart")
+                .verifyComplete();
 
         verify(cartService).getItemsInTheCart();
         verify(model, never()).addAttribute(eq("cart"), any());
     }
 
     /**
-     * POST /cart/items — если элемент корзины не найден, выбрасывается NoSuchElementException
+     * POST /cart/items — если элемент корзины не найден, возвращается view "cart",
+     * при этом модель не заполняется объектом Cart.
      */
     @Test
-    @DisplayName("POST /cart/items — элемент корзины не найден, выбрасывается NoSuchElementException")
+    @DisplayName("POST /cart/items — элемент корзины не найден, возвращается view cart без изменения модели")
     void changeNumberOfItemsNotFoundTest() {
         ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder().build();
-
         when(cartService.changeNumberOfItemsFromCart(any(ChangeNumberOfItemsRequestDto.class)))
                 .thenReturn(Mono.empty());
 
         Mono<String> result = cartController.changeNumberOfItemsFromCart(req, model);
 
         StepVerifier.create(result)
-                .expectErrorSatisfies(throwable -> {
-                    assertInstanceOf(NoSuchElementException.class, throwable);
-                    assertEquals("Элемент корзины не найден", throwable.getMessage());
-                })
-                .verify();
+                .expectNext("cart")
+                .verifyComplete();
 
         verify(cartService).changeNumberOfItemsFromCart(refEq(req));
         verify(model, never()).addAttribute(eq("cart"), any());
