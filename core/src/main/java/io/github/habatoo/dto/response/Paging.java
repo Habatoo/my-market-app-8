@@ -13,8 +13,6 @@ import lombok.Builder;
  * @param hasPrevious  Признак наличия предыдущей страницы (true, если можно перейти назад)
  * @param hasNext Признак наличия следующей страницы (true, если можно перейти вперёд)
  */
-
-
 @Builder
 public record Paging(
         int total,

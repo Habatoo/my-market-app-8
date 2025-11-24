@@ -27,12 +27,9 @@ public class RootRedirectController {
      * @return строка редиректа для Spring
      */
     @GetMapping
-    public Mono<ResponseEntity<Void>> redirectToItems() {
+    public Mono<String> redirectToItems() {
         log.info("GET / — редирект на {}", REDIRECT);
-        return Mono.defer(() ->
-                Mono.just(ResponseEntity.status(HttpStatus.FOUND)
-                        .location(URI.create(REDIRECT))
-                        .build())
-        );
+
+        return Mono.just(REDIRECT);
     }
 }

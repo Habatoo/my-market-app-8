@@ -40,10 +40,9 @@ public class OrderController {
 
         return orderService.getOrders()
                 .collectList()
-                .switchIfEmpty(Mono.error(new NoSuchElementException("Список заказов пуст")))
                 .doOnNext(list -> log.debug("Найдено {} заказов", list.size()))
                 .doOnNext(list -> model.addAttribute(ORDERS, list))
-                .map(list -> ORDERS);
+                .thenReturn(ORDERS);
     }
 
     /**
@@ -63,11 +62,10 @@ public class OrderController {
         log.info("GET /orders/{} — просмотр заказа, newOrder={}", id, newOrder);
 
         return orderService.getOrder(id, newOrder)
-                .switchIfEmpty(Mono.error(new NoSuchElementException("Заказ с id=" + id + " не найден")))
                 .doOnNext(order -> {
                     model.addAttribute(ORDER, order);
                     model.addAttribute("newOrder", newOrder);
                 })
-                .map(order -> ORDER);
+                .thenReturn(ORDER);
     }
 }

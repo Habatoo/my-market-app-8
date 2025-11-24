@@ -50,7 +50,6 @@ public class ItemController {
                 req.getSearch(), req.getSort(), req.getPageSize(), req.getPageNumber());
 
         return itemService.getItems(req)
-                .switchIfEmpty(Mono.error(new NoSuchElementException("Каталог товаров пуст")))
                 .map(items -> {
                     log.debug("Получено {} строк товаров, paging={}",
                             items.itemsRows().size(), items.paging());
@@ -94,7 +93,7 @@ public class ItemController {
 
         return cartService.changeNumberOfItems(req)
                 .switchIfEmpty(Mono.error(new NoSuchElementException("Товар для изменения не найден")))
-                .map(itemDto -> redirect);
+                .thenReturn(redirect);
     }
 
     /**
@@ -111,7 +110,6 @@ public class ItemController {
         log.info("GET /items/{} — запрос страницы товара", id);
 
         return itemService.getItem(id)
-                .switchIfEmpty(Mono.error(new NoSuchElementException("Товар не найден")))
                 .doOnNext(item -> {
                     model.addAttribute(ITEM, item.item());
                     model.addAttribute("cartCount", item.cartCount());
@@ -137,9 +135,8 @@ public class ItemController {
         req.setId(id);
 
         return itemService.changeNumberOfItemsFromPage(req)
-                .switchIfEmpty(Mono.error(new NoSuchElementException("Товар для изменения не найден")))
                 .doOnNext(item -> model.addAttribute(ITEM, item.item()))
                 .doOnNext(item -> model.addAttribute("cartCount", item.cartCount()))
-                .map(item -> ITEM);
+                .thenReturn(ITEM);
     }
 }
