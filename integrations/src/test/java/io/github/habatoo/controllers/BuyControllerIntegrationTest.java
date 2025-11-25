@@ -1,7 +1,6 @@
 package io.github.habatoo.controllers;
 
 import io.github.habatoo.dto.response.CartDto;
-import io.github.habatoo.dto.response.OrderDto;
 import io.github.habatoo.handlers.GlobalExceptionHandler;
 import io.github.habatoo.servicies.BuyService;
 import io.github.habatoo.servicies.CartService;
@@ -14,11 +13,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -53,10 +50,7 @@ class BuyControllerIntegrationTest {
     void buySuccessTest() {
         CartDto cartDto = new CartDto(42L, List.of(), BigDecimal.TEN);
         when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
-        doNothing().when(buyService).buy(42L);
-
-        OrderDto lastOrder = new OrderDto(111L, List.of(), BigDecimal.TEN, LocalDateTime.now());
-        when(orderService.getOrders()).thenReturn(Flux.just(lastOrder));
+        when(buyService.buy(anyLong())).thenReturn(Mono.just(111L));
 
         webTestClient.post()
                 .uri("/buy")
@@ -66,7 +60,6 @@ class BuyControllerIntegrationTest {
 
         verify(cartService).getItemsInTheCart();
         verify(buyService).buy(42L);
-        verify(orderService).getOrders();
     }
 
     /**
@@ -77,8 +70,7 @@ class BuyControllerIntegrationTest {
     void buyNoOrderTest() {
         CartDto cartDto = new CartDto(15L, List.of(), BigDecimal.ZERO);
         when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
-        doNothing().when(buyService).buy(15L);
-        when(orderService.getOrders()).thenReturn(Flux.empty());
+        when(buyService.buy(15L)).thenReturn(Mono.empty());
 
         webTestClient.post()
                 .uri("/buy")
@@ -88,7 +80,6 @@ class BuyControllerIntegrationTest {
 
         verify(cartService).getItemsInTheCart();
         verify(buyService).buy(15L);
-        verify(orderService).getOrders();
     }
 
     /**
@@ -139,8 +130,7 @@ class BuyControllerIntegrationTest {
     void buyOrdersFetchErrorTest() {
         CartDto cartDto = new CartDto(99L, List.of(), BigDecimal.ONE);
         when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
-        doNothing().when(buyService).buy(99L);
-        when(orderService.getOrders()).thenReturn(Flux.error(new RuntimeException("Failure")));
+        when(buyService.buy(99L)).thenReturn(Mono.error(new RuntimeException("Failure")));
 
         webTestClient.post()
                 .uri("/buy")
