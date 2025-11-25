@@ -1,131 +1,162 @@
-//package io.github.habatoo.servicies.impl;
-//
-//import io.github.habatoo.dto.response.OrderDto;
-//import io.github.habatoo.entity.Order;
-//import io.github.habatoo.mappers.OrderMapper;
-//import io.github.habatoo.repositories.OrderRepository;
-//import org.junit.jupiter.api.BeforeEach;
-//import org.junit.jupiter.api.DisplayName;
-//import org.junit.jupiter.api.Test;
-//import org.junit.jupiter.api.extension.ExtendWith;
-//import org.junit.jupiter.params.ParameterizedTest;
-//import org.junit.jupiter.params.provider.Arguments;
-//import org.junit.jupiter.params.provider.MethodSource;
-//import org.mockito.Mock;
-//import org.mockito.junit.jupiter.MockitoExtension;
-//
-//import java.math.BigDecimal;
-//import java.time.LocalDateTime;
-//import java.util.List;
-//import java.util.Optional;
-//import java.util.stream.Stream;
-//
-//import static org.junit.jupiter.api.Assertions.*;
-//import static org.mockito.Mockito.*;
-//
-///**
-// * Параметризованные unit-тесты для OrderServiceImpl.
-// * Проверяют все бизнес-кейсы: получение списка заказов, пустой список, получение по id,
-// * отсутствие заказа по id, корректное преобразование через маппер.
-// */
-//@ExtendWith(MockitoExtension.class)
-//@DisplayName("Тест загрузки OrderServiceImpl")
-//class OrderServiceImplTest {
-//
-//    @Mock
-//    private OrderRepository orderRepository;
-//    @Mock
-//    private OrderMapper mapper;
-//
-//    private OrderServiceImpl service;
-//
-//    @BeforeEach
-//    void setUp() {
-//        service = new OrderServiceImpl(orderRepository, mapper);
-//    }
-//
-//    /**
-//     * Тест получения списка заказов: заказы присутствуют, корректное преобразование.
-//     */
-//    @ParameterizedTest
-//    @MethodSource("ordersCases")
-//    @DisplayName("Получение списка заказов — различные наборы")
-//    void getOrdersTest(List<Order> inputOrders, List<OrderDto> expectedDtos) {
-//        when(orderRepository.findAll()).thenReturn(inputOrders);
-//        for (int i = 0; i < inputOrders.size(); i++) {
-//            when(mapper.toDto(inputOrders.get(i))).thenReturn(expectedDtos.get(i));
-//        }
-//
-//        List<OrderDto> result = service.getOrders();
-//
-//        assertEquals(expectedDtos, result);
-//        verify(orderRepository).findAll();
-//        inputOrders.forEach(order -> verify(mapper).toDto(order));
-//    }
-//
-//    /**
-//     * Тест получения списка заказов — пустой список.
-//     */
-//    @Test
-//    @DisplayName("Получение списка заказов — пустой список")
-//    void getOrdersEmptyTest() {
-//        when(orderRepository.findAll()).thenReturn(List.of());
-//
-//        List<OrderDto> result = service.getOrders();
-//
-//        assertTrue(result.isEmpty());
-//        verify(orderRepository).findAll();
-//    }
-//
-//    /**
-//     * Тест получения заказа по id — заказ найден.
-//     */
-//    @Test
-//    @DisplayName("Получение заказа по id — заказ найден")
-//    void getOrderFoundTest() {
-//        Order order = new Order();
-//        order.setId(12L);
-//        OrderDto dto = mock(OrderDto.class);
-//
-//        when(orderRepository.findById(12L)).thenReturn(Optional.of(order));
-//        when(mapper.toDto(order)).thenReturn(dto);
-//
-//        OrderDto result = service.getOrder(12L, true);
-//
-//        assertEquals(dto, result);
-//        verify(orderRepository).findById(12L);
-//        verify(mapper).toDto(order);
-//    }
-//
-//    /**
-//     * Тест получения заказа по id — заказ не найден, выбрасывает исключение.
-//     */
-//    @Test
-//    @DisplayName("Получение заказа по id — заказ не найден, выбрасывается исключение")
-//    void getOrderNotFoundTest() {
-//        when(orderRepository.findById(99L)).thenReturn(Optional.empty());
-//
-//        assertThrows(IllegalStateException.class, () -> service.getOrder(99L, false));
-//        verify(orderRepository).findById(99L);
-//    }
-//
-//    static Stream<Arguments> ordersCases() {
-//        Order o1 = new Order();
-//        o1.setId(3L);
-//        o1.setTotalSum(BigDecimal.valueOf(250));
-//        o1.setDateTime(LocalDateTime.now().minusDays(2));
-//
-//        Order o2 = new Order();
-//        o2.setId(4L);
-//        o2.setTotalSum(BigDecimal.valueOf(650));
-//        o2.setDateTime(LocalDateTime.now().minusDays(1));
-//
-//        OrderDto dto1 = new OrderDto(3L, List.of(), BigDecimal.valueOf(250), LocalDateTime.now().minusDays(2));
-//        OrderDto dto2 = new OrderDto(4L, List.of(), BigDecimal.valueOf(650), LocalDateTime.now().minusDays(1));
-//
-//        return Stream.of(
-//                Arguments.of(List.of(o1, o2), List.of(dto1, dto2)),
-//                Arguments.of(List.of(o1), List.of(dto1))
-//        );
-//    }
-//}
+package io.github.habatoo.servicies.impl;
+
+import io.github.habatoo.entity.Item;
+import io.github.habatoo.entity.Order;
+import io.github.habatoo.entity.OrderItem;
+import io.github.habatoo.repositories.ItemRepository;
+import io.github.habatoo.repositories.OrderItemRepository;
+import io.github.habatoo.repositories.OrderRepository;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+/**
+ * Параметризованные unit-тесты для OrderServiceImpl.
+ * Проверяют все бизнес-кейсы: получение списка заказов, пустой список, получение по id,
+ * отсутствие заказа по id, корректное преобразование через маппер.
+ */
+@ExtendWith(MockitoExtension.class)
+@DisplayName("Тест загрузки OrderServiceImpl (reactive)")
+class OrderServiceImplTest {
+
+    @Mock
+    private OrderRepository orderRepository;
+    @Mock
+    private OrderItemRepository orderItemRepository;
+    @Mock
+    private ItemRepository itemRepository;
+    @InjectMocks
+    private OrderServiceImpl service;
+
+    /**
+     * Тест получения всех заказов с их позициями.
+     */
+    @Test
+    @DisplayName("getOrders — заказы с позициями")
+    void getOrdersTest() {
+        Order order = new Order();
+        order.setId(1L);
+        order.setTotalSum(BigDecimal.valueOf(100));
+        order.setDateTime(LocalDateTime.now());
+
+        OrderItem orderItem = new OrderItem();
+        orderItem.setOrderId(1L);
+        orderItem.setItemId(10L);
+        orderItem.setCount(2);
+        orderItem.setPrice(BigDecimal.valueOf(50));
+
+        Item item = new Item();
+        item.setId(10L);
+        item.setTitle("Item 10");
+        item.setPrice(BigDecimal.valueOf(50));
+
+        when(orderRepository.findAll()).thenReturn(Flux.just(order));
+        when(orderItemRepository.findAllByOrderId(1L)).thenReturn(Flux.just(orderItem));
+        when(itemRepository.findById(10L)).thenReturn(Mono.just(item));
+
+        StepVerifier.create(service.getOrders())
+                .assertNext(orderDto -> {
+                    assertEquals(order.getId(), orderDto.id());
+                    assertEquals(order.getTotalSum(), orderDto.totalSum());
+                    assertEquals(order.getDateTime(), orderDto.dateTime());
+                    assertEquals(1, orderDto.items().size());
+
+                    var orderItemDto = orderDto.items().get(0);
+                    assertEquals(orderItem.getCount(), orderItemDto.count());
+                    assertEquals(orderItem.getPrice(), orderItemDto.price());
+                    assertEquals(orderItem.getPrice().multiply(BigDecimal.valueOf(
+                            orderItem.getCount())), orderItemDto.total());
+                    assertEquals(item.getId(), orderItemDto.item().id());
+                    assertEquals(item.getTitle(), orderItemDto.item().title());
+                    assertEquals(item.getPrice(), orderItemDto.item().price());
+                })
+                .verifyComplete();
+
+        verify(orderRepository).findAll();
+        verify(orderItemRepository).findAllByOrderId(1L);
+        verify(itemRepository).findById(10L);
+    }
+
+    /**
+     * Тест получения конкретного заказа — найден.
+     */
+    @Test
+    @DisplayName("getOrder — заказ найден")
+    void getOrderFoundTest() {
+        Order order = new Order();
+        order.setId(2L);
+        order.setTotalSum(BigDecimal.valueOf(200));
+        order.setDateTime(LocalDateTime.now());
+
+        OrderItem orderItem = new OrderItem();
+        orderItem.setOrderId(2L);
+        orderItem.setItemId(20L);
+        orderItem.setCount(1);
+        orderItem.setPrice(BigDecimal.valueOf(200));
+
+        Item item = new Item();
+        item.setId(20L);
+        item.setTitle("Item 20");
+        item.setPrice(BigDecimal.valueOf(200));
+
+        when(orderRepository.findById(2L)).thenReturn(Mono.just(order));
+        when(orderItemRepository.findAllByOrderId(2L)).thenReturn(Flux.just(orderItem));
+        when(itemRepository.findById(20L)).thenReturn(Mono.just(item));
+
+        StepVerifier.create(service.getOrder(2L, true))
+                .assertNext(orderDto -> {
+                    assertEquals(order.getId(), orderDto.id());
+                    assertEquals(1, orderDto.items().size());
+                    assertEquals(order.getTotalSum(), orderDto.totalSum());
+                })
+                .verifyComplete();
+
+        verify(orderRepository).findById(2L);
+        verify(orderItemRepository).findAllByOrderId(2L);
+        verify(itemRepository).findById(20L);
+    }
+
+    /**
+     * Тест получения заказа — не найден.
+     */
+    @Test
+    @DisplayName("getOrder — заказ не найден, выбрасывает исключение")
+    void getOrderNotFoundTest() {
+        when(orderRepository.findById(99L)).thenReturn(Mono.empty());
+
+        StepVerifier.create(service.getOrder(99L, true))
+                .expectErrorMatches(err -> err instanceof IllegalStateException
+                        && err.getMessage().equals("Заказ с id=99 не найден"))
+                .verify();
+
+        verify(orderRepository).findById(99L);
+    }
+
+    /**
+     * Тест получения всех заказов — пустой список.
+     */
+    @Test
+    @DisplayName("getOrders — пустой список")
+    void getOrdersEmptyTest() {
+        when(orderRepository.findAll()).thenReturn(Flux.empty());
+
+        StepVerifier.create(service.getOrders())
+                .expectNextCount(0)
+                .verifyComplete();
+
+        verify(orderRepository).findAll();
+    }
+}
