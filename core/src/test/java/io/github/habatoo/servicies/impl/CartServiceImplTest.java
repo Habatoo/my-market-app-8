@@ -22,7 +22,6 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.math.BigDecimal;
-import java.util.NoSuchElementException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -249,57 +248,6 @@ class CartServiceImplTest {
         StepVerifier.create(service.changeNumberOfItems(req))
                 .expectNext(dto)
                 .verifyComplete();
-    }
-
-    /**
-     * decrement при отсутствии товара → ошибка
-     */
-    @Test
-    @DisplayName("changeNumberOfItems — decrement товара, которого нет в корзине → ошибка")
-    void testChangeNumberOfItemsDecrementMissingItem() {
-        Cart cart = new Cart();
-        cart.setId(1L);
-
-        ChangeNumberOfItemsRequestDto req =
-                ChangeNumberOfItemsRequestDto.builder()
-                        .id(100L)
-                        .action(Action.MINUS)
-                        .build();
-
-        when(cartRepository.findAll()).thenReturn(Flux.just(cart));
-        when(cartItemRepository.findAllByCartId(1L)).thenReturn(Flux.empty());
-
-        StepVerifier.create(service.changeNumberOfItems(req))
-                .expectErrorMatches(err ->
-                        err instanceof NoSuchElementException &&
-                                err.getMessage().equals("Товар для изменения не найден"))
-                .verify();
-    }
-
-    /**
-     * increment при отсутствии товара в itemRepository → ошибка
-     */
-    @Test
-    @DisplayName("changeNumberOfItems — increment, но item не найден → ошибка")
-    void testChangeNumberOfItemsIncrementItemNotFound() {
-        Cart cart = new Cart();
-        cart.setId(1L);
-
-        ChangeNumberOfItemsRequestDto req =
-                ChangeNumberOfItemsRequestDto.builder()
-                        .id(999L)
-                        .action(Action.PLUS)
-                        .build();
-
-        when(cartRepository.findAll()).thenReturn(Flux.just(cart));
-        when(cartItemRepository.findAllByCartId(1L)).thenReturn(Flux.empty());
-        when(itemRepository.findById(999L)).thenReturn(Mono.empty());
-
-        StepVerifier.create(service.changeNumberOfItems(req))
-                .expectErrorMatches(err ->
-                        err instanceof NoSuchElementException &&
-                                err.getMessage().equals("Товар с id=999 не найден"))
-                .verify();
     }
 
     /**

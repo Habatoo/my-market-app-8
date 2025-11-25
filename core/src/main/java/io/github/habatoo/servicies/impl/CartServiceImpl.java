@@ -7,7 +7,6 @@ import io.github.habatoo.dto.response.CartItemDto;
 import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.entity.Cart;
 import io.github.habatoo.entity.CartItem;
-import io.github.habatoo.mappers.CartMapper;
 import io.github.habatoo.mappers.ItemMapper;
 import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.CartRepository;
@@ -20,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 
 /**
@@ -69,8 +67,6 @@ public class CartServiceImpl implements CartService {
                                 .switchIfEmpty(
                                         request.getAction() == Action.PLUS
                                                 ? itemRepository.findById(itemId)
-                                                .switchIfEmpty(Mono.error(
-                                                        new NoSuchElementException("Товар с id=" + itemId + " не найден")))
                                                 .flatMap(item -> {
                                                     CartItem newCi = new CartItem();
                                                     newCi.setCartId(cart.getId());
@@ -81,11 +77,10 @@ public class CartServiceImpl implements CartService {
                                                             .then(recalcAndSaveCartTotal(cart.getId()))
                                                             .thenReturn(itemMapper.toDto(item));
                                                 })
-                                                : Mono.error(new NoSuchElementException("Товар для изменения не найден"))
+                                                : Mono.empty()
                                 )
                 );
     }
-
 
     /**
      * {@inheritDoc}

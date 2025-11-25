@@ -82,17 +82,12 @@ public class ItemServiceImpl implements ItemService {
     @Override
     public Mono<ItemDtoResponse> changeNumberOfItemsFromPage(ChangeNumberOfItemsRequestDto request) {
         return cartService.changeNumberOfItems(request)
+                .switchIfEmpty(Mono.defer(() -> repository.findById(request.getId()).map(mapper::toDto)))
                 .zipWith(cartService.getItemsInTheCart())
                 .flatMap(tuple -> buildItemResponse(
                         tuple.getT1(),
                         tuple.getT2(),
                         tuple.getT1().id()));
-    }
-
-    private Mono<ItemDto> loadItemDto(Long id) {
-        return repository.findById(id)
-                .switchIfEmpty(Mono.error(new IllegalStateException("Товар с id=" + id + " не найден")))
-                .map(mapper::toDto);
     }
 
     private Mono<ItemDtoResponse> buildItemResponse(ItemDto item, CartDto cart, Long itemId) {
@@ -102,6 +97,12 @@ public class ItemServiceImpl implements ItemService {
                         .item(item)
                         .cartCount(cnt)
                         .build());
+    }
+
+    private Mono<ItemDto> loadItemDto(Long id) {
+        return repository.findById(id)
+                .switchIfEmpty(Mono.error(new IllegalStateException("Товар с id=" + id + " не найден")))
+                .map(mapper::toDto);
     }
 
     private record PageProcessingResult(List<List<ItemDto>> itemsRows,

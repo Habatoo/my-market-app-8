@@ -43,6 +43,7 @@ dependencies {
         api 'com.zaxxer:HikariCP:5.1.0'
         api 'org.postgresql:postgresql:42.7.4'
         api 'org.postgresql:r2dbc-postgresql:1.1.1.RELEASE'
+        api 'org.testcontainers:postgresql:1.21.3'
 
         api 'commons-fileupload:commons-fileupload:1.5'
         api 'commons-io:commons-io:2.16.1'
