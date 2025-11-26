@@ -92,7 +92,6 @@ public class ItemController {
         log.info("Редирект после изменения: {}", redirect);
 
         return cartService.changeNumberOfItems(req)
-                //.switchIfEmpty(Mono.error(new NoSuchElementException("Товар для изменения не найден")))
                 .thenReturn(redirect);
     }
 

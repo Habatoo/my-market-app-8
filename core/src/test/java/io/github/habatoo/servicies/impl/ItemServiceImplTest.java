@@ -35,8 +35,7 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * Параметризованные unit-тесты для ItemServiceImpl.
@@ -191,6 +190,41 @@ class ItemServiceImplTest {
                 IllegalStateException.class,
                 () -> service.getItem(101L).block()
         );
+    }
+
+    /**
+     * Изменение количества товаров.
+     */
+    @Test
+    @DisplayName("Изменение количества товара — корректный результат")
+    void changeNumberOfItemsFromPageEmpty() {
+        ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
+                .id(23L)
+                .action(Action.PLUS)
+                .build();
+
+        Item item = new Item();
+        item.setId(23L);
+        item.setTitle("TestItem");
+        ItemDto fallbackDto = new ItemDto(23L, "TestItem", null, null, BigDecimal.ZERO, 0);
+        when(mapper.toDto(item)).thenReturn(fallbackDto);
+        when(repository.findById(23L)).thenReturn(Mono.just(item));
+
+        when(cartService.changeNumberOfItems(req)).thenReturn(Mono.empty());
+
+        when(cartItemRepository.findCountByCartIdAndItemId(1L, 23L)).thenReturn(Mono.just(1));
+        CartDto cartDto = CartDto.builder()
+                .id(1L)
+                .items(List.of())
+                .total(BigDecimal.ZERO)
+                .build();
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
+
+        service.changeNumberOfItemsFromPage(req).block();
+
+        verify(repository).findById(23L);
+        verify(mapper).toDto(item);
+        verify(cartService).changeNumberOfItems(req);
     }
 
     /**

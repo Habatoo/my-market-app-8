@@ -327,4 +327,66 @@ class CartServiceImplTest {
         verify(cartItemRepository, atLeastOnce()).save(any());
         verify(itemRepository).findById(5L);
     }
+
+    /**
+     * Имитирует ситуацию, когда из корзины удаляется последний товар (action = MINUS),
+     * и это побочно вызывает recalcAndSaveCartTotal.changeNumberOfItems
+     * — вызывает changeNumberOfItems + getItemsInTheCart
+     */
+    @Test
+    @DisplayName("changeNumberOfItems — цепочка вызовов change + getItems + ")
+    void testRecalcTriggeredOnItemDelete() {
+        long cartId = 1L;
+        long itemId = 100L;
+
+        ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
+                .id(itemId)
+                .action(Action.MINUS)
+                .sort(null)
+                .pageNumber(null)
+                .pageSize(null)
+                .build();
+
+        Cart cart = new Cart();
+        cart.setId(cartId);
+
+        when(cartRepository.findAll()).thenReturn(Flux.just(cart));
+        when(cartRepository.save(any())).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+
+        CartItem ci = new CartItem();
+        ci.setCartId(cartId);
+        ci.setItemId(itemId);
+        ci.setCount(1);
+        ci.setPrice(BigDecimal.TEN);
+
+        CartItem ci2 = new CartItem();
+        ci2.setCartId(cartId);
+        ci2.setPrice(BigDecimal.valueOf(5));
+        ci2.setCount(3);
+
+        when(cartItemRepository.findAllByCartId(cartId))
+                .thenReturn(Flux.just(ci))
+                .thenReturn(Flux.just(ci2));
+        when(cartItemRepository.delete(ci)).thenReturn(Mono.empty());
+        when(cartRepository.findById(cartId)).thenReturn(Mono.just(cart));
+
+        Item removedItem = new Item();
+        removedItem.setId(itemId);
+        removedItem.setTitle("title");
+        removedItem.setDescription("desc");
+        removedItem.setImgPath("img");
+        removedItem.setPrice(BigDecimal.TEN);
+
+        when(itemRepository.findById(itemId)).thenReturn(Mono.just(removedItem));
+        when(itemMapper.toDto(removedItem)).thenReturn(new ItemDto(
+                itemId, "title", "desc", "img", BigDecimal.TEN, 0));
+
+        StepVerifier.create(service.changeNumberOfItems(request))
+                .expectNextCount(1)
+                .verifyComplete();
+
+        verify(cartRepository).save(argThat(c ->
+                c.getTotal().compareTo(BigDecimal.valueOf(15)) == 0
+        ));
+    }
 }

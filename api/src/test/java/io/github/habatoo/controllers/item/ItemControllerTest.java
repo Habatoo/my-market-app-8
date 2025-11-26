@@ -47,6 +47,9 @@ class ItemControllerTest {
     @Mock
     private Model model;
 
+    @Mock
+    private BindingResult bindingResult;
+
     @InjectMocks
     private ItemController itemController;
 
@@ -81,6 +84,29 @@ class ItemControllerTest {
         verify(model).addAttribute("sort", sort);
         verify(model).addAttribute("paging", response.paging());
         verify(model).addAttribute("itemCounts", response.itemCounts());
+    }
+
+    /**
+     * Тест получения в данных ошибки.
+     * Проверяет исключение при ошибке в данных.
+     */
+    @Test
+    @DisplayName("GET /items — ошибка в данных")
+    void changeNumberOfItems_shouldReturnError_whenBindingResultHasErrors() {
+        ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
+                .action(Action.MINUS)
+                .build();
+
+        when(bindingResult.hasErrors()).thenReturn(true);
+
+        Mono<String> result = itemController.changeNumberOfItems(req, bindingResult);
+
+        StepVerifier.create(result)
+                .expectErrorMatches(ex ->
+                        ex instanceof IllegalArgumentException
+                                && ex.getMessage().equals("Некорректные параметры изменения товара")
+                )
+                .verify();
     }
 
     /**

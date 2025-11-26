@@ -4,6 +4,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessException;
@@ -95,10 +98,12 @@ class GlobalExceptionHandlerTest {
      * - в модель добавляется сообщение "Корзина не найдена" и статус 500
      * - имя view — "error/500"
      */
-    @Test
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"Корзина отсутствует", "", " "})
     @DisplayName("Перехват IllegalStateException — страница error/500 и статус 500")
-    void testHandleIllegalStateException() {
-        IllegalStateException ex = new IllegalStateException("Корзина отсутствует");
+    void testHandleIllegalStateException(String message) {
+        IllegalStateException ex = new IllegalStateException(message);
 
         Mono<String> viewName = handler.handleIllegalStateException(ex, model);
 
@@ -106,7 +111,10 @@ class GlobalExceptionHandlerTest {
                 .expectNext("error/500")
                 .verifyComplete();
 
-        verify(model).addAttribute("error", "Корзина отсутствует");
+        verify(model).addAttribute("error", message == null
+                || message.isBlank()
+                ? "Внутренняя ошибка сервера"
+                : message);
         verify(model).addAttribute("status", 500);
     }
 
