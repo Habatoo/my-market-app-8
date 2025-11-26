@@ -1,9 +1,13 @@
 spring:
   r2dbc:
-    url: r2dbc:tc:postgresql:16-alpine:///test
+    url: r2dbc:postgresql://localhost:12345/testdb
   liquibase:
     enabled: true
-    change-log: classpath:/db/changelog/db.changelog-master.yaml
+    url: jdbc:postgresql://localhost:5432/shop_db
+    user: shop_admin
+    password: shop_password
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    contexts: test
   web:
     cors:
       path-pattern: "/**"
