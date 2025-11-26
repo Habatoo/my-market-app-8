@@ -6,6 +6,9 @@ import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 /**
  * Unit-тест для RootRedirectController.
  * Проверяет корректность перенаправления со старта приложения на витрину товаров.
@@ -27,7 +30,7 @@ class RootRedirectControllerTest {
 
         StepVerifier.create(result)
                 .assertNext(response -> {
-                    assert REDIRECT.equals(response);
+                    assertEquals(REDIRECT, response);
                 })
                 .verifyComplete();
     }

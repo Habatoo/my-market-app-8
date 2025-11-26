@@ -85,7 +85,7 @@ public class CartServiceImpl implements CartService {
     /**
      * {@inheritDoc}
      */
-    @Transactional(readOnly = true)
+    @Transactional
     @Override
     public Mono<CartDto> getItemsInTheCart() {
         return getCurrentCart()
