@@ -113,4 +113,17 @@ public abstract class BaseTest {
         orderItem.setPrice(price);
         return orderItemRepository.save(orderItem);
     }
+
+    protected Cart createCart(BigDecimal total) {
+        Cart cart = new Cart();
+        cart.setTotal(total);
+        return cart;
+    }
+
+    protected Item createItem(String title, BigDecimal price) {
+        Item item = new Item();
+        item.setTitle(title);
+        item.setPrice(price);
+        return item;
+    }
 }
