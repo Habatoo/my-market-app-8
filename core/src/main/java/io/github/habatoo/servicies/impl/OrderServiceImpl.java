@@ -1,11 +1,10 @@
 package io.github.habatoo.servicies.impl;
 
-import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.dto.response.OrderDto;
 import io.github.habatoo.dto.response.OrderItemDto;
-import io.github.habatoo.entity.Item;
 import io.github.habatoo.entity.Order;
 import io.github.habatoo.entity.OrderItem;
+import io.github.habatoo.mappers.ItemMapper;
 import io.github.habatoo.repositories.ItemRepository;
 import io.github.habatoo.repositories.OrderItemRepository;
 import io.github.habatoo.repositories.OrderRepository;
@@ -31,6 +30,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final ItemRepository itemRepository;
+    private final ItemMapper mapper;
 
     /**
      * {@inheritDoc}
@@ -80,24 +80,10 @@ public class OrderServiceImpl implements OrderService {
     private Mono<OrderItemDto> buildOrderItemDto(OrderItem orderItem) {
         return itemRepository.findById(orderItem.getItemId())
                 .map(item -> OrderItemDto.builder()
-                        .item(mapToItemDto(item))
+                        .item(mapper.toDto(item))
                         .count(orderItem.getCount())
                         .price(orderItem.getPrice())
                         .total(orderItem.getPrice().multiply(BigDecimal.valueOf(orderItem.getCount())))
                         .build());
-    }
-
-    /**
-     * Преобразует Item → ItemDto.
-     */
-    private ItemDto mapToItemDto(Item item) {
-        return new ItemDto(
-                item.getId(),
-                item.getTitle(),
-                item.getDescription(),
-                item.getImgPath(),
-                item.getPrice(),
-                0
-        );
     }
 }

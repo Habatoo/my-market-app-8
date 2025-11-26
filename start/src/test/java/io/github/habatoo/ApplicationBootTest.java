@@ -2,6 +2,7 @@ package io.github.habatoo;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -11,6 +12,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 /**
  * Smoke-тест, проверяющий, что контекст Spring Boot приложения поднимается без ошибок.
  */
+@ActiveProfiles("test")
 @Testcontainers
 @SpringBootTest
 public class ApplicationBootTest {

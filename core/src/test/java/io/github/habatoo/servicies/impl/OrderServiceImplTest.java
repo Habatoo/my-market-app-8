@@ -1,8 +1,10 @@
 package io.github.habatoo.servicies.impl;
 
+import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.entity.Item;
 import io.github.habatoo.entity.Order;
 import io.github.habatoo.entity.OrderItem;
+import io.github.habatoo.mappers.ItemMapper;
 import io.github.habatoo.repositories.ItemRepository;
 import io.github.habatoo.repositories.OrderItemRepository;
 import io.github.habatoo.repositories.OrderRepository;
@@ -38,6 +40,8 @@ class OrderServiceImplTest {
     private OrderItemRepository orderItemRepository;
     @Mock
     private ItemRepository itemRepository;
+    @Mock
+    private ItemMapper mapper;
     @InjectMocks
     private OrderServiceImpl service;
 
@@ -66,6 +70,8 @@ class OrderServiceImplTest {
         when(orderRepository.findAll()).thenReturn(Flux.just(order));
         when(orderItemRepository.findAllByOrderId(1L)).thenReturn(Flux.just(orderItem));
         when(itemRepository.findById(10L)).thenReturn(Mono.just(item));
+        when(mapper.toDto(item)).thenReturn(
+                ItemDto.builder().id(10L).title("Item 10").price(BigDecimal.valueOf(50)).build());
 
         StepVerifier.create(service.getOrders())
                 .assertNext(orderDto -> {
@@ -115,6 +121,7 @@ class OrderServiceImplTest {
         when(orderRepository.findById(2L)).thenReturn(Mono.just(order));
         when(orderItemRepository.findAllByOrderId(2L)).thenReturn(Flux.just(orderItem));
         when(itemRepository.findById(20L)).thenReturn(Mono.just(item));
+        when(mapper.toDto(item)).thenReturn(ItemDto.builder().build());
 
         StepVerifier.create(service.getOrder(2L, true))
                 .assertNext(orderDto -> {

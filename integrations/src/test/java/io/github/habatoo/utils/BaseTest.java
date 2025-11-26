@@ -4,11 +4,15 @@ import io.github.habatoo.entity.*;
 import io.github.habatoo.repositories.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+@Testcontainers
 public abstract class BaseTest {
 
     @Autowired
@@ -35,6 +39,12 @@ public abstract class BaseTest {
                 .then(itemRepository.deleteAll())
                 .block();
     }
+
+    @Container
+    public static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
+            .withDatabaseName("testdb")
+            .withUsername("test")
+            .withPassword("test");
 
     /**
      * Создать и сохранить Cart с указанной суммой.
