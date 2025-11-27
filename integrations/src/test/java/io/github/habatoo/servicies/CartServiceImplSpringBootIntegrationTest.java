@@ -11,7 +11,6 @@ import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.data.r2dbc.AutoConfigureDataR2dbc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import reactor.test.StepVerifier;
 
 import java.math.BigDecimal;
@@ -19,7 +18,6 @@ import java.math.BigDecimal;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Testcontainers
 @SpringBootTest
 @AutoConfigureDataR2dbc
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
