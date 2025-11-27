@@ -1,15 +1,25 @@
 spring:
+  profiles:
+    active: dev
+
+  r2dbc:
+    url: ${SPRING_R2DBC_URL}
+    username: ${SPRING_DB_USERNAME}
+    password: ${SPRING_DB_PASSWORD}
+
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_DB_USERNAME}
-    password: ${SPRING_DATASOURCE_DB_PASSWORD}
-    hikari:
-      maximum-pool-size: 10
-      connection-timeout: 30000
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: validate
+    url: ${SPRING_DATASOURCE_JDBC_URL}
+    username: ${SPRING_DB_USERNAME}
+    password: ${SPRING_DB_PASSWORD}
+
+  liquibase:
+    enabled: true
+    url: ${SPRING_DATASOURCE_JDBC_URL}
+    user: ${SPRING_DB_USERNAME}
+    password: ${SPRING_DB_PASSWORD}
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    contexts: dev
+
   web:
     cors:
       path-pattern: "/**"
@@ -20,11 +30,3 @@ spring:
       allowed-headers: "*"
       allow-credentials: true
       max-age: 3600
-
-liquibase:
-  enabled: true
-  driver-class-name: org.postgresql.Driver
-  url: ${SPRING_DATASOURCE_URL}
-  username: ${SPRING_DATASOURCE_DB_USERNAME}
-  password: ${SPRING_DATASOURCE_DB_PASSWORD}
-  context: prod
