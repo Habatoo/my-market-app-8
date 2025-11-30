@@ -26,10 +26,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.data.domain.Pageable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -67,8 +69,55 @@ class ItemServiceImplTest {
     void getItemsReactiveTest(GetItemsRequestDto req,
                               List<Item> all,
                               List<Item> expectedPage) {
-        when(repository.findAll())
-                .thenReturn(Flux.fromIterable(all));
+
+        String rawSearch = req.getSearch();
+        boolean noSearch = rawSearch == null || rawSearch.trim().isEmpty();
+        String search = noSearch ? "" : rawSearch.trim();
+
+        if (noSearch) {
+            when(repository.findAllBy(any(Pageable.class)))
+                    .thenAnswer(inv -> {
+                        Pageable pageable = inv.getArgument(0);
+                        List<Item> page = all.stream()
+                                .sorted(buildComparator(req))
+                                .skip((long) pageable.getPageNumber() * pageable.getPageSize())
+                                .limit(pageable.getPageSize())
+                                .toList();
+                        return Flux.fromIterable(page);
+                    });
+
+            when(repository.count())
+                    .thenReturn(Mono.just((long) all.size()));
+        } else {
+            when(repository.findByTitleContainingOrDescriptionContaining(
+                    eq(search),
+                    eq(search),
+                    any(Pageable.class)
+            )).thenAnswer(inv -> {
+                Pageable pageable = inv.getArgument(2);
+                List<Item> page = all.stream()
+                        .filter(i -> (i.getTitle() != null
+                                && i.getTitle().toLowerCase().contains(search.toLowerCase()))
+                                || (i.getDescription() != null
+                                && i.getDescription().toLowerCase().contains(search.toLowerCase())))
+                        .sorted(buildComparator(req))
+                        .skip((long) pageable.getPageNumber() * pageable.getPageSize())
+                        .limit(pageable.getPageSize())
+                        .toList();
+                return Flux.fromIterable(page);
+            });
+
+            when(repository.countByTitleContainingOrDescriptionContaining(eq(search), eq(search)))
+                    .thenReturn(Mono.just(
+                            all.stream()
+                                    .filter(i -> (i.getTitle() != null
+                                            && i.getTitle().toLowerCase().contains(search.toLowerCase()))
+                                            || (i.getDescription() != null
+                                            && i.getDescription().toLowerCase().contains(search.toLowerCase())))
+                                    .count()
+                    ));
+        }
+
         when(mapper.toDto(anyList())).thenAnswer(inv -> {
             List<Item> items = inv.getArgument(0);
             return items.stream()
@@ -78,7 +127,8 @@ class ItemServiceImplTest {
                             item.getDescription(),
                             item.getImgPath(),
                             item.getPrice(),
-                            0))
+                            0
+                    ))
                     .toList();
         });
 
@@ -90,6 +140,8 @@ class ItemServiceImplTest {
         ItemsDtoResponse resp = service.getItems(req).block();
 
         assertNotNull(resp);
+        assertEquals(cart, resp.cart());
+        assertNotNull(resp.paging());
 
         List<Long> actualIds = resp.itemsRows().stream()
                 .flatMap(List::stream)
@@ -97,12 +149,11 @@ class ItemServiceImplTest {
                 .filter(id -> id != -1)
                 .toList();
 
-        assertEquals(
-                expectedPage.stream().map(Item::getId).toList(),
-                actualIds
-        );
-        assertEquals(cart, resp.cart());
-        assertNotNull(resp.paging());
+        List<Long> expectedIds = expectedPage.stream()
+                .map(Item::getId)
+                .toList();
+
+        assertEquals(expectedIds, actualIds);
     }
 
     /**
@@ -113,14 +164,21 @@ class ItemServiceImplTest {
     void emptyItemsTest() {
         GetItemsRequestDto req = GetItemsRequestDto.builder().build();
 
-        when(repository.findAll()).thenReturn(Flux.empty());
-        when(cartService.getItemsInTheCart()).thenReturn(Mono.just(mock(CartDto.class)));
-        when(mapper.toDto(anyList())).thenReturn(List.of());
+        when(repository.findAllBy(any(Pageable.class)))
+                .thenReturn(Flux.empty());
+        when(repository.count())
+                .thenReturn(Mono.just(0L));
+
+        when(cartService.getItemsInTheCart())
+                .thenReturn(Mono.just(mock(CartDto.class)));
+
+        when(mapper.toDto(anyList()))
+                .thenReturn(List.of());
 
         ItemsDtoResponse resp = service.getItems(req).block();
 
         assertNotNull(resp);
-        assertTrue(resp.itemsRows().isEmpty() || resp.itemsRows().get(0).isEmpty());
+        assertTrue(resp.itemsRows().isEmpty());
     }
 
     /**
@@ -135,13 +193,17 @@ class ItemServiceImplTest {
 
         Item item = new Item(10L, "T", "СуперОписание", "", BigDecimal.ONE, 0);
 
-        when(repository.findAll()).thenReturn(Flux.just(item));
-
-        when(mapper.toDto(anyList())).thenReturn(
-                List.of(new ItemDto(10L, "T", "СуперОписание", "", BigDecimal.ONE, 0))
-        );
-
-        when(cartService.getItemsInTheCart()).thenReturn(Mono.just(mock(CartDto.class)));
+        when(repository.findByTitleContainingOrDescriptionContaining(
+                eq("описание"), eq("описание"), any(Pageable.class))
+        ).thenReturn(Flux.just(item));
+        when(repository.countByTitleContainingOrDescriptionContaining(
+                eq("описание"), eq("описание"))
+        ).thenReturn(Mono.just(1L));
+        when(mapper.toDto(anyList()))
+                .thenReturn(List.of(new ItemDto(
+                        10L, "T", "СуперОписание", "", BigDecimal.ONE, 0)));
+        when(cartService.getItemsInTheCart())
+                .thenReturn(Mono.just(mock(CartDto.class)));
         when(cartItemRepository.findCountByCartIdAndItemId(any(), any()))
                 .thenReturn(Mono.just(0));
 
@@ -149,6 +211,8 @@ class ItemServiceImplTest {
 
         assertNotNull(resp);
         assertFalse(resp.itemsRows().isEmpty());
+        assertEquals(1, resp.itemsRows().size());
+        assertEquals("СуперОписание", resp.itemsRows().get(0).get(0).description());
     }
 
     /**
@@ -361,5 +425,15 @@ class ItemServiceImplTest {
                         List.of(itemA)
                 )
         );
+    }
+
+    private Comparator<Item> buildComparator(GetItemsRequestDto req) {
+        if (req.getSort() == null) return (i1, i2) -> 0;
+
+        return switch (req.getSort()) {
+            case ALPHA -> Comparator.comparing(Item::getTitle, String.CASE_INSENSITIVE_ORDER);
+            case PRICE -> Comparator.comparing(Item::getPrice);
+            case NO -> (i1, i2) -> 0;
+        };
     }
 }
