@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
+import reactor.util.function.Tuples;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -65,20 +66,31 @@ public class ItemServiceImpl implements ItemService {
         } else {
             String search = rawSearch.trim();
 
-            itemsFlux = repository.findByTitleContainingOrDescriptionContaining(
-                    search, search, pageable
-            );
-
-            totalMono = repository.countByTitleContainingOrDescriptionContaining(
-                    search, search
-            );
+            itemsFlux = repository.findByTitleContainingOrDescriptionContaining(search, search, pageable);
+            totalMono = repository.countByTitleContainingOrDescriptionContaining(search, search);
         }
 
         return itemsFlux
                 .collectList()
+                .map(mapper::toDto)
                 .zipWith(cartMono)
+                .flatMap(tuple -> {
+                    List<ItemDto> itemDtos = tuple.getT1();
+                    CartDto cart = tuple.getT2();
+
+                    return loadCountsForItems(itemDtos, cart.id())
+                            .map(countMap -> Tuples.of(itemDtos, cart, countMap));
+                })
                 .zipWith(totalMono)
-                .map(getItemsDtoResponseFunction(pageSize, pageNumber));
+                .map(tuple -> {
+                    List<ItemDto> items = tuple.getT1().getT1();
+                    CartDto cart = tuple.getT1().getT2();
+                    Map<Long, Integer> countMap = tuple.getT1().getT3();
+                    Long total = tuple.getT2();
+
+                    return getItemsDtoResponseFunction(pageSize, pageNumber, countMap)
+                            .apply(Tuples.of(Tuples.of(items, cart), total));
+                });
     }
 
     /**
@@ -114,19 +126,26 @@ public class ItemServiceImpl implements ItemService {
                         tuple.getT1().id()));
     }
 
-    private Function<Tuple2<Tuple2<List<Item>, CartDto>, Long>, ItemsDtoResponse> getItemsDtoResponseFunction(
-            int pageSize, int pageNumber) {
+    private Mono<Map<Long, Integer>> loadCountsForItems(List<ItemDto> itemDtos, Long cartId) {
+        return Flux.fromIterable(itemDtos)
+                .flatMap(itemDto ->
+                        cartItemRepository.findCountByCartIdAndItemId(cartId, itemDto.id())
+                                .defaultIfEmpty(0)
+                                .map(cnt -> Map.entry(itemDto.id(), cnt))
+                )
+                .collectMap(Map.Entry::getKey, Map.Entry::getValue);
+    }
+
+    private Function<Tuple2<Tuple2<List<ItemDto>, CartDto>, Long>, ItemsDtoResponse> getItemsDtoResponseFunction(
+            int pageSize, int pageNumber, Map<Long, Integer> map) {
         return tuple -> {
-            List<Item> items = tuple.getT1().getT1();
             CartDto cart = tuple.getT1().getT2();
             long total = tuple.getT2();
-
-            List<ItemDto> itemDtos = mapper.toDto(items);
+            List<ItemDto> itemDtos = tuple.getT1().getT1();
             List<List<ItemDto>> rows = splitByRows(itemDtos, 3);
-
             Paging paging = getPaging(pageSize, pageNumber, total);
 
-            return buildItemsResponse(rows, cart, paging, Map.of());
+            return buildItemsResponse(rows, cart, paging, map);
         };
     }
 
