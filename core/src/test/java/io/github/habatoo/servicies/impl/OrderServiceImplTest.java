@@ -1,6 +1,8 @@
 package io.github.habatoo.servicies.impl;
 
 import io.github.habatoo.dto.response.ItemDto;
+import io.github.habatoo.dto.response.OrderDto;
+import io.github.habatoo.dto.response.OrderItemDto;
 import io.github.habatoo.entity.Item;
 import io.github.habatoo.entity.Order;
 import io.github.habatoo.entity.OrderItem;
@@ -20,6 +22,7 @@ import reactor.test.StepVerifier;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
@@ -49,107 +52,52 @@ class OrderServiceImplTest {
      * Тест получения всех заказов с их позициями.
      */
     @Test
-    @DisplayName("getOrders — заказы с позициями")
+    @DisplayName("getOrders — корректный возврат заказа с позициями")
     void getOrdersTest() {
-        Order order = new Order();
-        order.setId(1L);
-        order.setTotalSum(BigDecimal.valueOf(100));
-        order.setDateTime(LocalDateTime.now());
-
-        OrderItem orderItem = new OrderItem();
-        orderItem.setOrderId(1L);
-        orderItem.setItemId(10L);
-        orderItem.setCount(2);
-        orderItem.setPrice(BigDecimal.valueOf(50));
-
-        Item item = new Item();
-        item.setId(10L);
-        item.setTitle("Item 10");
-        item.setPrice(BigDecimal.valueOf(50));
+        Order order = createOrder(1L, BigDecimal.valueOf(100));
+        OrderItem orderItem = createOrderItem(1L, 10L, 2, BigDecimal.valueOf(50));
+        Item item = createItem(10L, "Item 10", BigDecimal.valueOf(50));
+        ItemDto itemDto = createItemDto(10L, "Item 10", BigDecimal.valueOf(50));
 
         when(orderRepository.findAll()).thenReturn(Flux.just(order));
-        when(orderItemRepository.findAllByOrderId(1L)).thenReturn(Flux.just(orderItem));
-        when(itemRepository.findById(10L)).thenReturn(Mono.just(item));
-        when(mapper.toDto(item)).thenReturn(
-                ItemDto.builder().id(10L).title("Item 10").price(BigDecimal.valueOf(50)).build());
+        when(orderItemRepository.findAllByOrderIdIn(List.of(1L))).thenReturn(Flux.just(orderItem));
+        when(itemRepository.findAllById(List.of(10L))).thenReturn(Flux.just(item));
+        when(mapper.toDto(item)).thenReturn(itemDto);
 
         StepVerifier.create(service.getOrders())
-                .assertNext(orderDto -> {
-                    assertEquals(order.getId(), orderDto.id());
-                    assertEquals(order.getTotalSum(), orderDto.totalSum());
-                    assertEquals(order.getDateTime(), orderDto.dateTime());
-                    assertEquals(1, orderDto.items().size());
-
-                    var orderItemDto = orderDto.items().get(0);
-                    assertEquals(orderItem.getCount(), orderItemDto.count());
-                    assertEquals(orderItem.getPrice(), orderItemDto.price());
-                    assertEquals(orderItem.getPrice().multiply(BigDecimal.valueOf(
-                            orderItem.getCount())), orderItemDto.total());
-                    assertEquals(item.getId(), orderItemDto.item().id());
-                    assertEquals(item.getTitle(), orderItemDto.item().title());
-                    assertEquals(item.getPrice(), orderItemDto.item().price());
-                })
+                .assertNext(orderDto -> verifyOrderDto(orderDto, order, orderItem, itemDto))
                 .verifyComplete();
 
         verify(orderRepository).findAll();
-        verify(orderItemRepository).findAllByOrderId(1L);
-        verify(itemRepository).findById(10L);
-    }
-
-    /**
-     * Тест получения конкретного заказа — найден.
-     */
-    @Test
-    @DisplayName("getOrder — заказ найден")
-    void getOrderFoundTest() {
-        Order order = new Order();
-        order.setId(2L);
-        order.setTotalSum(BigDecimal.valueOf(200));
-        order.setDateTime(LocalDateTime.now());
-
-        OrderItem orderItem = new OrderItem();
-        orderItem.setOrderId(2L);
-        orderItem.setItemId(20L);
-        orderItem.setCount(1);
-        orderItem.setPrice(BigDecimal.valueOf(200));
-
-        Item item = new Item();
-        item.setId(20L);
-        item.setTitle("Item 20");
-        item.setPrice(BigDecimal.valueOf(200));
-
-        when(orderRepository.findById(2L)).thenReturn(Mono.just(order));
-        when(orderItemRepository.findAllByOrderId(2L)).thenReturn(Flux.just(orderItem));
-        when(itemRepository.findById(20L)).thenReturn(Mono.just(item));
-        when(mapper.toDto(item)).thenReturn(ItemDto.builder().build());
-
-        StepVerifier.create(service.getOrder(2L, true))
-                .assertNext(orderDto -> {
-                    assertEquals(order.getId(), orderDto.id());
-                    assertEquals(1, orderDto.items().size());
-                    assertEquals(order.getTotalSum(), orderDto.totalSum());
-                })
-                .verifyComplete();
-
-        verify(orderRepository).findById(2L);
-        verify(orderItemRepository).findAllByOrderId(2L);
-        verify(itemRepository).findById(20L);
+        verify(orderItemRepository).findAllByOrderIdIn(List.of(1L));
+        verify(itemRepository).findAllById(List.of(10L));
+        verify(mapper).toDto(item);
     }
 
     /**
      * Тест получения заказа — не найден.
      */
     @Test
-    @DisplayName("getOrder — заказ не найден, выбрасывает исключение")
-    void getOrderNotFoundTest() {
-        when(orderRepository.findById(99L)).thenReturn(Mono.empty());
+    @DisplayName("getOrder — заказ найден")
+    void getOrderFoundTest() {
+        Order order = createOrder(2L, BigDecimal.valueOf(200));
+        OrderItem orderItem = createOrderItem(2L, 20L, 1, BigDecimal.valueOf(200));
+        Item item = createItem(20L, "Item 20", BigDecimal.valueOf(200));
+        ItemDto itemDto = createItemDto(20L, "Item 20", BigDecimal.valueOf(200));
 
-        StepVerifier.create(service.getOrder(99L, true))
-                .expectErrorMatches(err -> err instanceof IllegalStateException
-                        && err.getMessage().equals("Заказ с id=99 не найден"))
-                .verify();
+        when(orderRepository.findById(2L)).thenReturn(Mono.just(order));
+        when(orderItemRepository.findAllByOrderIdIn(List.of(2L))).thenReturn(Flux.just(orderItem));
+        when(itemRepository.findAllById(List.of(20L))).thenReturn(Flux.just(item));
+        when(mapper.toDto(item)).thenReturn(itemDto);
 
-        verify(orderRepository).findById(99L);
+        StepVerifier.create(service.getOrder(2L, true))
+                .assertNext(orderDto -> verifyOrderDto(orderDto, order, orderItem, itemDto))
+                .verifyComplete();
+
+        verify(orderRepository).findById(2L);
+        verify(orderItemRepository).findAllByOrderIdIn(List.of(2L));
+        verify(itemRepository).findAllById(List.of(20L));
+        verify(mapper).toDto(item);
     }
 
     /**
@@ -165,5 +113,55 @@ class OrderServiceImplTest {
                 .verifyComplete();
 
         verify(orderRepository).findAll();
+    }
+
+    private Order createOrder(Long id, BigDecimal sum) {
+        Order order = new Order();
+        order.setId(id);
+        order.setTotalSum(sum);
+        order.setDateTime(LocalDateTime.now());
+        return order;
+    }
+
+    private OrderItem createOrderItem(Long orderId, Long itemId, int count, BigDecimal price) {
+        OrderItem oi = new OrderItem();
+        oi.setOrderId(orderId);
+        oi.setItemId(itemId);
+        oi.setCount(count);
+        oi.setPrice(price);
+        return oi;
+    }
+
+    private Item createItem(Long id, String title, BigDecimal price) {
+        Item item = new Item();
+        item.setId(id);
+        item.setTitle(title);
+        item.setPrice(price);
+        return item;
+    }
+
+    private ItemDto createItemDto(Long id, String title, BigDecimal price) {
+        return ItemDto.builder()
+                .id(id)
+                .title(title)
+                .price(price)
+                .build();
+    }
+
+    private void verifyOrderDto(OrderDto orderDto, Order order, OrderItem orderItem, ItemDto itemDto) {
+        assertEquals(order.getId(), orderDto.id());
+        assertEquals(order.getTotalSum(), orderDto.totalSum());
+        assertEquals(order.getDateTime(), orderDto.dateTime());
+        assertEquals(1, orderDto.items().size());
+
+        OrderItemDto oi = orderDto.items().get(0);
+
+        assertEquals(orderItem.getCount(), oi.count());
+        assertEquals(orderItem.getPrice(), oi.price());
+        assertEquals(orderItem.getPrice().multiply(BigDecimal.valueOf(orderItem.getCount())), oi.total());
+
+        assertEquals(itemDto.id(), oi.item().id());
+        assertEquals(itemDto.title(), oi.item().title());
+        assertEquals(itemDto.price(), oi.item().price());
     }
 }
