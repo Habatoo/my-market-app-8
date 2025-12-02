@@ -23,15 +23,8 @@ dependencyManagement {
 dependencies {
     implementation platform('org.springframework.boot:spring-boot-dependencies:3.5.8')
     implementation platform(project(':bom'))
-    implementation project(':core')
-    implementation project(':api')
-
-    implementation 'org.springframework.boot:spring-boot-starter'
-
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
-    testImplementation 'org.testcontainers:junit-jupiter'
-    testImplementation 'org.testcontainers:postgresql'
+    implementation project(':payment:core')
+    implementation project(':payment:api')
 }
 
 jar {

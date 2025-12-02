@@ -11,8 +11,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import reactor.core.publisher.Mono;
 
-import java.util.NoSuchElementException;
-
 /**
  * Контроллер для работы с заказами пользователя.
  * Позволяет просматривать список заказов, а также детальную информацию по каждому заказу.

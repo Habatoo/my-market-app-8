@@ -7,7 +7,6 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Тестовый класс для проверки корректной загрузки и связывания свойств

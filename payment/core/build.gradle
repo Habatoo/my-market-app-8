@@ -1,0 +1,43 @@
+plugins {
+    id 'java'
+    id 'jacoco'
+    id 'java-library'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+jacoco {
+    toolVersion = '0.8.11'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom 'org.springframework.boot:spring-boot-dependencies:3.5.8'
+    }
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+dependencies {
+    implementation platform(project(':bom'))
+    annotationProcessor platform(project(":bom"))
+
+    api 'org.springframework.boot:spring-boot-autoconfigure'
+    implementation 'org.springframework.boot:spring-boot-starter'
+    annotationProcessor 'org.springframework.boot:spring-boot-autoconfigure-processor'
+}
+
+jar {
+    enabled = true
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs.add('-parameters')
+}
+
+test {
+    useJUnitPlatform()
+}

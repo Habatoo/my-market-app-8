@@ -1,8 +1,15 @@
-rootProject.name = 'my-market-app-6'
+rootProject.name = 'my-market-app-7'
 
-include 'api'
-include 'core'
-include 'start'
 include 'bom'
-include 'integrations'
 include 'report'
+include 'integration-tests'
+
+include 'store:api'
+include 'store:core'
+include 'store:start'
+include 'store:integrations'
+
+include 'payment:api'
+include 'payment:core'
+include 'payment:start'
+include 'payment:integrations'

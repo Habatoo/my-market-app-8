@@ -12,8 +12,6 @@ import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
-import java.util.NoSuchElementException;
-
 /**
  * Контроллер витрины магазина.
  * Отвечает за обработку запросов по просмотру списка товаров, отдельной позиции,
