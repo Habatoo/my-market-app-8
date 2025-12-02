@@ -6,9 +6,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.web.servlet.config.annotation.CorsRegistration;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.reactive.config.CorsRegistration;
+import org.springframework.web.reactive.config.CorsRegistry;
+import org.springframework.web.reactive.config.WebFluxConfigurer;
 
 import java.util.List;
 
@@ -31,7 +31,7 @@ class CorsAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(TestConfig.class)
             .withPropertyValues(
-                    "spring.web.cors.path-pattern=/api/**",
+                    "spring.web.cors.path-pattern=/**",
                     "spring.web.cors.allowed-origin-patterns[0]=http://localhost",
                     "spring.web.cors.allowed-methods[0]=GET",
                     "spring.web.cors.allowed-methods[1]=POST",
@@ -48,14 +48,14 @@ class CorsAutoConfigurationTest {
     }
 
     @Test
-    @DisplayName("Автоконфигурация CORS создает бин WebMvcConfigurer и правильно привязывает CorsProperties")
+    @DisplayName("Автоконфигурация CORS создает бин WebFluxConfigurer и правильно привязывает CorsProperties")
     void testCorsAutoConfigurationCreatesWebMvcConfigurer() {
         contextRunner.run(context -> {
-            WebMvcConfigurer configurer = context.getBean(WebMvcConfigurer.class);
+            WebFluxConfigurer configurer = context.getBean(WebFluxConfigurer.class);
             assertThat(configurer).isNotNull();
 
             CorsProperties corsProps = context.getBean(CorsProperties.class);
-            assertThat(corsProps.pathPattern()).isEqualTo("/api/**");
+            assertThat(corsProps.pathPattern()).isEqualTo("/**");
             assertThat(corsProps.allowedOriginPatterns()).contains("http://localhost");
             assertThat(corsProps.allowedMethods()).containsExactly("GET", "POST", "PUT", "DELETE", "OPTIONS");
             assertThat(corsProps.allowedHeaders()).contains("*");
@@ -65,9 +65,10 @@ class CorsAutoConfigurationTest {
     }
 
     @Test
+    @DisplayName("Конфигурация CorsProperties")
     void testAddCorsMappingsCalledWithExpectedArguments() {
         CorsProperties corsProps = new CorsProperties(
-                "/api/**",
+                "/**",
                 List.of("http://localhost"),
                 List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"),
                 "*",
@@ -77,17 +78,17 @@ class CorsAutoConfigurationTest {
         CorsRegistry registry = mock(CorsRegistry.class);
         CorsRegistration registration = mock(CorsRegistration.class);
 
-        when(registry.addMapping(eq("/api/**"))).thenReturn(registration);
+        when(registry.addMapping(eq("/**"))).thenReturn(registration);
         when(registration.allowedOriginPatterns(eq(new String[]{"http://localhost"}))).thenReturn(registration);
         when(registration.allowedMethods(eq(new String[]{"GET", "POST", "PUT", "DELETE", "OPTIONS"}))).thenReturn(registration);
         when(registration.allowedHeaders(eq(new String[]{"*"}))).thenReturn(registration);
         when(registration.allowCredentials(eq(true))).thenReturn(registration);
         when(registration.maxAge(eq(3600L))).thenReturn(registration);
 
-        WebMvcConfigurer configurer = new CorsAutoConfiguration().corsWebMvcConfigurer(corsProps);
+        WebFluxConfigurer configurer = new CorsAutoConfiguration().corsWebFluxConfigurer(corsProps);
         configurer.addCorsMappings(registry);
 
-        verify(registry).addMapping("/api/**");
+        verify(registry).addMapping("/**");
         verify(registration).allowedOriginPatterns(new String[]{"http://localhost"});
         verify(registration).allowedMethods(new String[]{"GET", "POST", "PUT", "DELETE", "OPTIONS"});
         verify(registration).allowedHeaders(new String[]{"*"});

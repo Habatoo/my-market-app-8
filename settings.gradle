@@ -1,4 +1,4 @@
-rootProject.name = 'my-market-app-5'
+rootProject.name = 'my-market-app-6'
 
 include 'api'
 include 'core'

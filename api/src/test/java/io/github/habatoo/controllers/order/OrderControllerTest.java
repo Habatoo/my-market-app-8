@@ -10,10 +10,14 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ui.Model;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 /**
@@ -40,14 +44,18 @@ class OrderControllerTest {
     @Test
     @DisplayName("GET \"/orders\" — отображение списка заказов пользователя")
     void getOrderListTest() {
-        List<OrderDto> orders = List.of(mock(OrderDto.class), mock(OrderDto.class));
+        Flux<OrderDto> orders =
+                Flux.fromIterable(List.of(mock(OrderDto.class), mock(OrderDto.class)));
+
         when(orderService.getOrders()).thenReturn(orders);
 
-        String result = orderController.getOrderList(model);
+        Mono<String> result = orderController.getOrderList(model);
 
-        assertEquals("orders", result);
+        StepVerifier.create(result)
+                .expectNext("orders")
+                .verifyComplete();
+
         verify(orderService).getOrders();
-        verify(model).addAttribute("orders", orders);
     }
 
     /**
@@ -59,14 +67,17 @@ class OrderControllerTest {
     void getOrderNewOrderTrueTest() {
         Long id = 42L;
         boolean newOrder = true;
-        OrderDto dto = mock(OrderDto.class);
+        Mono<OrderDto> dto = Mono.just(new OrderDto(id, List.of(), BigDecimal.ONE, LocalDateTime.now()));
         when(orderService.getOrder(id, newOrder)).thenReturn(dto);
 
-        String result = orderController.getOrder(id, newOrder, model);
+        Mono<String> result = orderController.getOrder(id, newOrder, model);
 
-        assertEquals("order", result);
+        StepVerifier.create(result)
+                .expectNext("order")
+                .verifyComplete();
+
         verify(orderService).getOrder(id, true);
-        verify(model).addAttribute("order", dto);
+        verify(model).addAttribute(eq("order"), any(OrderDto.class));
         verify(model).addAttribute("newOrder", true);
     }
 
@@ -79,14 +90,17 @@ class OrderControllerTest {
     void getOrderNewOrderFalseTest() {
         Long id = 42L;
         boolean newOrder = false;
-        OrderDto dto = mock(OrderDto.class);
+        Mono<OrderDto> dto = Mono.just(new OrderDto(id, List.of(), BigDecimal.ONE, LocalDateTime.now()));
         when(orderService.getOrder(id, newOrder)).thenReturn(dto);
 
-        String result = orderController.getOrder(id, newOrder, model);
+        Mono<String> result = orderController.getOrder(id, newOrder, model);
 
-        assertEquals("order", result);
+        StepVerifier.create(result)
+                .expectNext("order")
+                .verifyComplete();
+
         verify(orderService).getOrder(id, false);
-        verify(model).addAttribute("order", dto);
+        verify(model).addAttribute(eq("order"), any(OrderDto.class));
         verify(model).addAttribute("newOrder", false);
     }
 }

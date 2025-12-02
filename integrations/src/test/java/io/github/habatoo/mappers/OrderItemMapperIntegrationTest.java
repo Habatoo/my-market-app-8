@@ -9,7 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -27,54 +26,22 @@ class OrderItemMapperIntegrationTest {
 
         OrderItem entity = new OrderItem();
         entity.setId(17L);
-        entity.setItem(item);
-        entity.setPrice(BigDecimal.valueOf(100));
+        entity.setItemId(7L);
+        entity.setOrderId(10L);
         entity.setCount(3);
+        entity.setPrice(BigDecimal.valueOf(100));
 
         OrderItemDto dto = orderItemMapper.toDto(entity);
 
         assertThat(dto).isNotNull();
-        assertThat(dto.item().id()).isEqualTo(7L);
-        assertThat(dto.price()).isEqualTo(BigDecimal.valueOf(100));
         assertThat(dto.count()).isEqualTo(3);
-        assertThat(dto.total()).isEqualTo(BigDecimal.valueOf(300)); // 100*3
-    }
-
-    @Test
-    @DisplayName("Маппинг OrderItem в DTO: price или count null — total=0")
-    void mapOrderItemNullPriceOrCountTest() {
-        OrderItem entity = new OrderItem();
-        entity.setId(41L);
-        entity.setPrice(null);
-        entity.setCount(null);
-
-        OrderItemDto dto = orderItemMapper.toDto(entity);
-
-        assertThat(dto.total()).isEqualTo(BigDecimal.ZERO);
-    }
-
-    @Test
-    @DisplayName("Маппинг списка OrderItem в список DTO")
-    void mapOrderItemListTest() {
-        OrderItem entityA = new OrderItem();
-        entityA.setId(1L);
-        entityA.setPrice(BigDecimal.valueOf(10));
-        entityA.setCount(2);
-
-        OrderItem entityB = new OrderItem();
-        entityB.setId(2L);
-        entityB.setPrice(BigDecimal.valueOf(7));
-        entityB.setCount(4);
-
-        List<OrderItemDto> dtos = orderItemMapper.toDto(List.of(entityA, entityB));
-        assertThat(dtos).hasSize(2);
-        assertThat(dtos.get(0).total()).isEqualTo(BigDecimal.valueOf(20));
-        assertThat(dtos.get(1).total()).isEqualTo(BigDecimal.valueOf(28));
+        assertThat(dto.price()).isEqualTo(BigDecimal.valueOf(100));
+        assertThat(dto.total()).isEqualTo(BigDecimal.valueOf(300));
     }
 
     @Test
     @DisplayName("Маппинг пустого списка OrderItem")
     void mapEmptyOrderItemListTest() {
-        assertThat(orderItemMapper.toDto(List.of())).isEmpty();
+        assertThat(orderItemMapper.toDto(null)).isNull();
     }
 }

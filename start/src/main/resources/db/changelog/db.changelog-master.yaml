@@ -3,4 +3,4 @@ databaseChangeLog:
       file: db/changelog/001_init_structure.yaml
   - include:
       file: db/changelog/002_fill_database.yaml
-      context: fill-database
+      context: dev,test

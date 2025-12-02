@@ -24,7 +24,7 @@ public class CorsPropertiesTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(CorsPropertiesTest.TestConfig.class)
             .withPropertyValues(
-                    "spring.web.cors.path-pattern=/api/**",
+                    "spring.web.cors.path-pattern=/**",
                     "spring.web.cors.allowed-origin-patterns[0]=http://localhost",
                     "spring.web.cors.allowed-origin-patterns[1]=http://127.0.0.1",
                     "spring.web.cors.allowed-methods[0]=GET",
@@ -50,7 +50,7 @@ public class CorsPropertiesTest {
     void shouldLoadPropertiesFromYaml() {
         contextRunner.run(context -> {
             var props = context.getBean(CorsProperties.class);
-            assertThat(props.pathPattern()).isEqualTo("/api/**");
+            assertThat(props.pathPattern()).isEqualTo("/**");
             assertThat(props.allowedOriginPatterns()).contains("http://localhost");
             assertThat(props.allowedMethods()).containsExactly("GET", "POST", "PUT", "DELETE", "OPTIONS");
             assertThat(props.allowedHeaders()).contains("*");

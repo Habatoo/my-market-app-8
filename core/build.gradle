@@ -11,7 +11,7 @@ jacoco {
 
 dependencyManagement {
     imports {
-        mavenBom 'org.springframework.boot:spring-boot-dependencies:3.5.7'
+        mavenBom 'org.springframework.boot:spring-boot-dependencies:3.5.8'
     }
 }
 
@@ -22,22 +22,26 @@ repositories {
 
 dependencies {
     implementation platform(project(':bom'))
+    annotationProcessor platform(project(":bom"))
 
     api 'org.springframework.boot:spring-boot-autoconfigure'
     implementation 'org.springframework.boot:spring-boot-starter'
     annotationProcessor 'org.springframework.boot:spring-boot-autoconfigure-processor'
 
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
     implementation 'org.hibernate.orm:hibernate-core'
     implementation 'org.liquibase:liquibase-core'
 
     implementation 'org.mapstruct:mapstruct'
-    annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+    annotationProcessor 'org.mapstruct:mapstruct-processor'
+    annotationProcessor 'org.projectlombok:lombok-mapstruct-binding'
 
-    implementation 'org.springframework.boot:spring-boot-starter-web'
     compileOnly 'org.projectlombok:lombok'
-    runtimeOnly 'org.postgresql:postgresql'
     annotationProcessor 'org.projectlombok:lombok'
+
+
+    runtimeOnly 'org.postgresql:r2dbc-postgresql'
+    runtimeOnly 'org.postgresql:postgresql'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
@@ -46,7 +50,7 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
-
+    testImplementation 'io.projectreactor:reactor-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

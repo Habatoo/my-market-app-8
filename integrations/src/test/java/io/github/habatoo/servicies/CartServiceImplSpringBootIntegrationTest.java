@@ -1,131 +1,138 @@
 package io.github.habatoo.servicies;
 
-import io.github.habatoo.Application;
 import io.github.habatoo.dto.enums.Action;
 import io.github.habatoo.dto.request.ChangeNumberOfItemsRequestDto;
-import io.github.habatoo.dto.response.CartDto;
-import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.entity.Cart;
-import io.github.habatoo.entity.CartItem;
 import io.github.habatoo.entity.Item;
 import io.github.habatoo.utils.BaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.data.r2dbc.AutoConfigureDataR2dbc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
+import reactor.test.StepVerifier;
 
 import java.math.BigDecimal;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Интеграционные тесты для CartServiceImpl с использованием @SpringBootTest.
- * Покрывают ключевые ситуации работы с корзиной: добавление, удаление, изменение количества товаров, пустая корзина и ошибка отсутствия товара.
- */
-@Transactional
-@ActiveProfiles("test")
-@SpringBootTest(classes = Application.class)
-@DisplayName("Интеграционный тест CartServiceImpl — работа с корзиной")
+@SpringBootTest
+@AutoConfigureDataR2dbc
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@DisplayName("Интеграционные тесты CartServiceImpl")
 class CartServiceImplSpringBootIntegrationTest extends BaseTest {
 
     @Autowired
     private CartService cartService;
 
-    /**
-     * Тест — успешное добавление нового товара в корзину.
-     */
     @Test
-    @DisplayName("Добавление товара — товар появляется в корзине, количество и сумма корректны")
-    void addItemToCartSuccessTest() {
-        Item item = createAndSaveItem("CartItem1", BigDecimal.valueOf(70));
-        ChangeNumberOfItemsRequestDto dto = ChangeNumberOfItemsRequestDto.builder()
+    @DisplayName("Добавление нового товара в пустую корзину")
+    void addItemToEmptyCartTest() {
+        Item item = createAndSaveItem("Item1", BigDecimal.valueOf(100)).block();
+
+        ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
                 .id(item.getId())
                 .action(Action.PLUS)
                 .build();
 
-        ItemDto itemDto = cartService.changeNumberOfItems(dto);
+        StepVerifier.create(cartService.changeNumberOfItems(request))
+                .assertNext(itemDto -> {
+                    assertEquals(itemDto.id(), item.getId());
+                    assertEquals(itemDto.title(), item.getTitle());
+                })
+                .verifyComplete();
 
-        Cart cart = cartRepository.findAll().get(0);
-        assertFalse(cart.getItems().isEmpty());
-        CartItem cartItem = cart.getItems().get(0);
-        assertEquals(item.getId(), cartItem.getItem().getId());
-        assertEquals(1, cartItem.getCount());
-        assertEquals(item.getPrice(), cartItem.getPrice());
-        assertEquals(item.getPrice(), cart.getTotal());
-        assertNotNull(itemDto);
+        StepVerifier.create(cartService.getItemsInTheCart())
+                .assertNext(cartDto -> {
+                    assert cartDto.items().size() == 1;
+                    assert cartDto.total().compareTo(BigDecimal.valueOf(100)) == 0;
+                })
+                .verifyComplete();
     }
 
-    /**
-     * Тест — увеличение и уменьшение количества существующего товара.
-     */
     @Test
-    @DisplayName("Изменение количества товара — увеличение и уменьшение, удаление при 0")
-    void incrementAndDecrementItemCountTest() {
-        Item item = createAndSaveItem("CartItem1", BigDecimal.valueOf(99));
-        ChangeNumberOfItemsRequestDto plusDto = ChangeNumberOfItemsRequestDto.builder()
-                .id(item.getId()).action(Action.PLUS).build();
-        cartService.changeNumberOfItems(plusDto);
-        cartService.changeNumberOfItems(plusDto);
-        ChangeNumberOfItemsRequestDto minusDto = ChangeNumberOfItemsRequestDto.builder()
-                .id(item.getId()).action(Action.MINUS).build();
-        cartService.changeNumberOfItems(minusDto);
+    @DisplayName("Увеличение количества существующего товара в корзине")
+    void increaseItemCountTest() {
+        Cart cart = createAndSaveCart().block();
+        Item item = createAndSaveItem("Item2", BigDecimal.valueOf(50)).block();
+        createAndSaveCartItem(cart, item, 1, item.getPrice()).block();
 
-        Cart cart = cartRepository.findAll().get(0);
-        CartItem ci = cart.getItems().get(0);
-        assertEquals(1, ci.getCount());
-        assertEquals(item.getPrice(), cart.getTotal());
+        ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
+                .id(item.getId())
+                .action(Action.PLUS)
+                .build();
 
-        cartService.changeNumberOfItems(minusDto);
+        StepVerifier.create(cartService.changeNumberOfItems(request))
+                .assertNext(itemDto -> assertEquals(itemDto.id(), item.getId()))
+                .verifyComplete();
 
-        Cart cartAfter = cartRepository.findAll().get(0);
-        assertTrue(cartAfter.getItems().isEmpty());
-        assertEquals(BigDecimal.ZERO, cartAfter.getTotal());
+        StepVerifier.create(cartService.getItemsInTheCart())
+                .assertNext(cartDto -> {
+                    assertEquals(2, (int) cartDto.items().get(0).count());
+                    assertEquals(0, cartDto.total().compareTo(BigDecimal.valueOf(100)));
+                })
+                .verifyComplete();
     }
 
-    /**
-     * Тест — возвращается корректный CartDto для корзины.
-     */
     @Test
-    @DisplayName("Запрос содержимого корзины — получаем CartDto, сумма и товары корректны")
-    void getItemsInTheCartTest() {
-        Item item = createAndSaveItem("CartItem1", BigDecimal.valueOf(33));
-        ChangeNumberOfItemsRequestDto dto = ChangeNumberOfItemsRequestDto.builder()
-                .id(item.getId()).action(Action.PLUS).build();
+    @DisplayName("Уменьшение количества товара до удаления")
+    void decreaseItemCountToZeroTest() {
+        Cart cart = createAndSaveCart().block();
+        Item item = createAndSaveItem("Item3", BigDecimal.valueOf(30)).block();
+        createAndSaveCartItem(cart, item, 1, item.getPrice()).block();
 
-        cartService.changeNumberOfItems(dto);
+        ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
+                .id(item.getId())
+                .action(Action.MINUS)
+                .build();
 
-        CartDto cartDto = cartService.getItemsInTheCart();
-        assertNotNull(cartDto);
-        assertEquals(1, cartDto.items().size());
-        assertEquals(BigDecimal.valueOf(33), cartDto.total());
+        StepVerifier.create(cartService.changeNumberOfItems(request))
+                .assertNext(itemDto -> {
+                    assertEquals(itemDto.id(), item.getId());
+                    assertEquals(0, (int) itemDto.count());
+                })
+                .verifyComplete();
+
+        StepVerifier.create(cartService.getItemsInTheCart())
+                .assertNext(cartDto -> {
+                    assertTrue(cartDto.items().isEmpty());
+                    assertEquals(0, cartDto.total().compareTo(BigDecimal.ZERO));
+                })
+                .verifyComplete();
     }
 
-    /**
-     * Тест — попытка изменить количество несуществующего товара выбрасывает исключение.
-     */
     @Test
-    @DisplayName("Ошибка — попытка изменить количество несуществующего товара")
-    void changeNumberOfItemsNotFoundTest() {
-        ChangeNumberOfItemsRequestDto dto = ChangeNumberOfItemsRequestDto.builder()
-                .id(-1234L).action(Action.PLUS).build();
+    @DisplayName("Попытка уменьшить количество товара, которого нет в корзине")
+    void decreaseNonExistingItemTest() {
+        ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
+                .id(999L)
+                .action(Action.MINUS)
+                .build();
 
-        assertThrows(IllegalStateException.class, () -> cartService.changeNumberOfItems(dto));
+        StepVerifier.create(cartService.changeNumberOfItems(request))
+                .expectComplete()
+                .verify();
     }
 
-    /**
-     * Тест — изменение количества через changeNumberOfItemsFromCart синхронизировано с содержимым корзины.
-     */
     @Test
-    @DisplayName("Изменение через changeNumberOfItemsFromCart возвращает актуальный CartDto")
-    void changeNumberOfItemsFromCartTest() {
-        Item item = createAndSaveItem("CartItem1", BigDecimal.valueOf(55));
-        ChangeNumberOfItemsRequestDto plusDto = ChangeNumberOfItemsRequestDto.builder()
-                .id(item.getId()).action(Action.PLUS).build();
+    @DisplayName("Получение полной корзины с несколькими товарами")
+    void getCartWithMultipleItemsTest() {
+        Cart cart = createAndSaveCart().block();
+        Item item1 = createAndSaveItem("ItemA", BigDecimal.valueOf(10)).block();
+        Item item2 = createAndSaveItem("ItemB", BigDecimal.valueOf(20)).block();
 
-        CartDto afterAdd = cartService.changeNumberOfItemsFromCart(plusDto);
+        createAndSaveCartItem(cart, item1, 2, item1.getPrice()).block();
+        createAndSaveCartItem(cart, item2, 1, item2.getPrice()).block();
 
-        assertEquals(BigDecimal.valueOf(55), afterAdd.total());
+        StepVerifier.create(cartService.getItemsInTheCart())
+                .assertNext(cartDto -> {
+                    assertEquals(2, cartDto.items().size());
+                    BigDecimal expectedTotal = item1.getPrice().multiply(BigDecimal.valueOf(2))
+                            .add(item2.getPrice());
+                    assertEquals(0, cartDto.total().compareTo(expectedTotal));
+                })
+                .verifyComplete();
     }
 }

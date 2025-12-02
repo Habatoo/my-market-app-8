@@ -1,6 +1,5 @@
 package io.github.habatoo.controllers;
 
-import io.github.habatoo.dto.response.OrderDto;
 import io.github.habatoo.servicies.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,8 +9,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import reactor.core.publisher.Mono;
 
-import java.util.List;
+import java.util.NoSuchElementException;
 
 /**
  * Контроллер для работы с заказами пользователя.
@@ -32,17 +32,17 @@ public class OrderController {
     /**
      * Отобразить список всех заказов пользователя.
      *
-     * @param model модель для передачи атрибутов в шаблон
      * @return имя шаблона списка заказов
      */
     @GetMapping
-    public String getOrderList(Model model) {
+    public Mono<String> getOrderList(Model model) {
         log.info("GET /orders — запрос списка заказов пользователя");
-        List<OrderDto> orders = orderService.getOrders();
-        log.debug("Получено заказов: {}", orders.size());
-        model.addAttribute(ORDERS, orders);
 
-        return ORDERS;
+        return orderService.getOrders()
+                .collectList()
+                .doOnNext(list -> log.debug("Найдено {} заказов", list.size()))
+                .doOnNext(list -> model.addAttribute(ORDERS, list))
+                .thenReturn(ORDERS);
     }
 
     /**
@@ -55,18 +55,17 @@ public class OrderController {
      * @return имя шаблона отдельного заказа
      */
     @GetMapping("/{id}")
-    public String getOrder(
+    public Mono<String> getOrder(
             @PathVariable Long id,
             @RequestParam(value = "newOrder", required = false, defaultValue = "false") boolean newOrder,
             Model model) {
         log.info("GET /orders/{} — просмотр заказа, newOrder={}", id, newOrder);
 
-        OrderDto order = orderService.getOrder(id, newOrder);
-        log.debug("Получен заказ: {}", order);
-
-        model.addAttribute(ORDER, order);
-        model.addAttribute("newOrder", newOrder);
-
-        return ORDER;
+        return orderService.getOrder(id, newOrder)
+                .doOnNext(order -> {
+                    model.addAttribute(ORDER, order);
+                    model.addAttribute("newOrder", newOrder);
+                })
+                .thenReturn(ORDER);
     }
 }

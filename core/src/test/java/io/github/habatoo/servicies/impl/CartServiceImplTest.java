@@ -2,40 +2,33 @@ package io.github.habatoo.servicies.impl;
 
 import io.github.habatoo.dto.enums.Action;
 import io.github.habatoo.dto.request.ChangeNumberOfItemsRequestDto;
-import io.github.habatoo.dto.response.CartDto;
+import io.github.habatoo.dto.response.CartItemDto;
 import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.entity.Cart;
 import io.github.habatoo.entity.CartItem;
 import io.github.habatoo.entity.Item;
-import io.github.habatoo.mappers.CartMapper;
 import io.github.habatoo.mappers.ItemMapper;
 import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.CartRepository;
 import io.github.habatoo.repositories.ItemRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
-/**
- * Unit-тесты для CartServiceImpl — покрывают основные и граничные сценарии изменения количества товаров в корзине.
- */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("Тест загрузки CartServiceImpl")
+@DisplayName("Unit-тесты CartServiceImpl")
 class CartServiceImplTest {
 
     @Mock
@@ -45,255 +38,355 @@ class CartServiceImplTest {
     @Mock
     private ItemRepository itemRepository;
     @Mock
-    private CartMapper cartMapper;
-    @Mock
     private ItemMapper itemMapper;
-
-    private CartServiceImpl cartService;
-
-    @BeforeEach
-    void setUp() {
-        cartService = new CartServiceImpl(
-                cartRepository,
-                cartItemRepository,
-                itemRepository,
-                cartMapper,
-                itemMapper);
-    }
+    @InjectMocks
+    private CartServiceImpl service;
 
     /**
-     * Тест — увеличение количества товара; товар уже есть в корзине.
+     * Корзина отсутствует (findAll().next() → empty) → создаётся новая корзина.
+     * Затем выполняется добавление нового товара (+1), т.к. товара ещё нет в корзине.
      */
     @Test
-    @DisplayName("PLUS: увеличивает количество товара в корзине")
-    void plusExistingItemTest() {
-        Cart cart = getCartWithItem(15L, 1, BigDecimal.valueOf(100));
-        Item item = getItem(15L, BigDecimal.valueOf(100));
+    @DisplayName("changeNumberOfItems — корзина отсутствует, создаётся новая и добавляется первый товар")
+    void testChangeNumberOfItemsCartNotExists() {
+        ChangeNumberOfItemsRequestDto req =
+                ChangeNumberOfItemsRequestDto.builder()
+                        .id(10L)
+                        .action(Action.PLUS)
+                        .build();
 
-        ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
-                .id(15L)
-                .action(Action.PLUS)
-                .build();
+        Cart newCart = new Cart();
+        newCart.setId(1L);
 
-        when(cartRepository.findAll()).thenReturn(List.of(cart));
-        when(itemRepository.findById(15L)).thenReturn(Optional.of(item));
-        when(itemMapper.toDto(item)).thenReturn(mock(ItemDto.class));
-        when(cartRepository.save(any(Cart.class))).thenReturn(cart);
-
-        ItemDto result = cartService.changeNumberOfItems(request);
-
-        assertNotNull(result);
-        verify(cartItemRepository).save(any(CartItem.class));
-        verify(cartRepository).save(cart);
-    }
-
-    /**
-     * Тест — уменьшение количества товара; товар останется после уменьшения.
-     */
-    @Test
-    @DisplayName("MINUS: уменьшает количество товара, он остаётся в корзине")
-    void minusItemCountAboveZeroTest() {
-        Cart cart = getCartWithItem(25L, 2, BigDecimal.valueOf(50));
-        Item item = getItem(25L, BigDecimal.valueOf(50));
-
-        ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
-                .id(25L)
-                .action(Action.MINUS)
-                .build();
-
-        when(cartRepository.findAll()).thenReturn(List.of(cart));
-        when(itemRepository.findById(25L)).thenReturn(Optional.of(item));
-        when(itemMapper.toDto(item)).thenReturn(mock(ItemDto.class));
-        when(cartRepository.save(any(Cart.class))).thenReturn(cart);
-
-        cartService.changeNumberOfItems(request);
-
-        verify(cartItemRepository).save(any(CartItem.class));
-        verify(cartRepository).save(cart);
-    }
-
-    /**
-     * Тест — уменьшение количества товара до нуля; товар должен быть удалён из корзины.
-     */
-    @Test
-    @DisplayName("MINUS: уменьшает количество товара до нуля, товар удаляется из корзины")
-    void minusItemCountToZeroTest() {
-        Cart cart = getCartWithItem(35L, 1, BigDecimal.valueOf(60));
-        Item item = getItem(35L, BigDecimal.valueOf(60));
-
-        ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
-                .id(35L)
-                .action(Action.MINUS)
-                .build();
-
-        when(cartRepository.findAll()).thenReturn(List.of(cart));
-        when(itemRepository.findById(35L)).thenReturn(Optional.of(item));
-        when(itemMapper.toDto(item)).thenReturn(mock(ItemDto.class));
-        when(cartRepository.save(any(Cart.class))).thenReturn(cart);
-
-        cartService.changeNumberOfItems(request);
-
-        verify(cartItemRepository).delete(any(CartItem.class));
-        verify(cartRepository).save(cart);
-    }
-
-    /**
-     * Тест — добавление нового товара (его нет в корзине).
-     */
-    @Test
-    @DisplayName("PLUS: добавляет новый товар в корзину")
-    void plusNewItemTest() {
-        Cart cart = new Cart();
-        cart.setItems(new ArrayList<>());
-        Item item = getItem(44L, BigDecimal.valueOf(77));
-
-        ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
-                .id(44L)
-                .action(Action.PLUS)
-                .build();
-
-        when(cartRepository.findAll()).thenReturn(List.of(cart));
-        when(itemRepository.findById(44L)).thenReturn(Optional.of(item));
-        when(itemMapper.toDto(item)).thenReturn(mock(ItemDto.class));
-        when(cartRepository.save(any(Cart.class))).thenReturn(cart);
-
-        cartService.changeNumberOfItems(request);
-
-        verify(cartItemRepository).save(any(CartItem.class));
-        verify(cartRepository).save(cart);
-    }
-
-    /**
-     * Тест — товар не найден — выбрасывается IllegalStateException.
-     */
-    @Test
-    @DisplayName("Выбрасывает исключение при отсутствии товара")
-    void itemNotFoundTest() {
-        Cart cart = new Cart();
-        cart.setItems(new ArrayList<>());
-        ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
-                .id(999L)
-                .action(Action.PLUS)
-                .build();
-
-        when(cartRepository.findAll()).thenReturn(List.of(cart));
-        when(itemRepository.findById(999L)).thenReturn(Optional.empty());
-
-        assertThrows(IllegalStateException.class, () -> cartService.changeNumberOfItems(request));
-    }
-
-    /**
-     * Тест получения корзины — преобразует Cart в CartDto.
-     */
-    @Test
-    @DisplayName("Получает корзину и преобразует в DTO")
-    void getItemsInTheCartTest() {
-        Cart cart = new Cart();
-        cart.setItems(new ArrayList<>());
-        CartDto dto = mock(CartDto.class);
-
-        when(cartRepository.findAll()).thenReturn(List.of(cart));
-        when(cartMapper.toDto(cart)).thenReturn(dto);
-
-        CartDto result = cartService.getItemsInTheCart();
-
-        assertEquals(dto, result);
-        verify(cartMapper).toDto(cart);
-    }
-
-    @ParameterizedTest
-    @MethodSource("cartChangeCases")
-    @DisplayName("Изменение количества товаров и все ветки changeNumberOfItemsFromCart")
-    void changeNumberOfItemsFromCartVariants(
-            List<Cart> cartsInRepo,
-            Optional<Item> itemOpt,
-            ChangeNumberOfItemsRequestDto request,
-            boolean expectNewCart,
-            boolean expectCartItemCreate,
-            boolean expectCartItemUpdate,
-            boolean expectCartItemDelete,
-            boolean expectException
-    ) {
-        if (itemOpt.isPresent()) {
-            when(itemRepository.findById(request.getId())).thenReturn(itemOpt);
-            when(itemMapper.toDto(itemOpt.get())).thenReturn(mock(ItemDto.class));
-        } else {
-            when(itemRepository.findById(request.getId())).thenReturn(Optional.empty());
-        }
-        when(cartRepository.findAll()).thenReturn(cartsInRepo);
-        lenient().when(cartRepository.save(any(Cart.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        CartDto cartDto = mock(CartDto.class);
-        lenient().when(cartMapper.toDto(any(Cart.class))).thenReturn(cartDto);
-
-        if (expectException) {
-            assertThrows(IllegalStateException.class, () -> cartService.changeNumberOfItemsFromCart(request));
-            return;
-        }
-
-        CartDto result = cartService.changeNumberOfItemsFromCart(request);
-
-        assertEquals(cartDto, result);
-
-        if (expectNewCart) {
-            verify(cartRepository, atLeastOnce()).save(argThat(cart -> cart.getItems().isEmpty()));
-        }
-        if (expectCartItemCreate) {
-            verify(cartItemRepository, atLeastOnce()).save(any(CartItem.class));
-        }
-        if (expectCartItemUpdate) {
-            verify(cartItemRepository, atLeastOnce()).save(any(CartItem.class));
-        }
-        if (expectCartItemDelete) {
-            verify(cartItemRepository, atLeastOnce()).delete(any(CartItem.class));
-        }
-    }
-
-    static Stream<Arguments> cartChangeCases() {
         Item item = new Item();
-        item.setId(1L);
-        item.setPrice(BigDecimal.valueOf(500));
-        CartItem itemInCart = new CartItem();
-        itemInCart.setItem(item);
-        itemInCart.setCount(1);
-        itemInCart.setPrice(item.getPrice());
+        item.setId(10L);
+        item.setPrice(BigDecimal.TEN);
 
-        Cart cartWithItem = new Cart();
-        cartWithItem.setItems(new ArrayList<>(List.of(itemInCart)));
+        ItemDto itemDto = new ItemDto(10L, null, null, null, BigDecimal.TEN, 1);
 
-        Cart emptyCart = new Cart();
-        emptyCart.setItems(new ArrayList<>());
+        when(cartRepository.findAll()).thenReturn(Flux.empty());
+        when(cartRepository.save(any(Cart.class))).thenReturn(Mono.just(newCart));
+        when(itemRepository.findById(10L)).thenReturn(Mono.just(item));
+        when(cartItemRepository.findAllByCartId(1L)).thenReturn(Flux.empty());
+        when(cartItemRepository.save(any(CartItem.class)))
+                .thenReturn(Mono.just(new CartItem()));
+        when(cartRepository.findById(1L)).thenReturn(Mono.just(newCart));
+        when(itemMapper.toDto(item)).thenReturn(itemDto);
 
-        ChangeNumberOfItemsRequestDto plusReq = ChangeNumberOfItemsRequestDto.builder().id(1L).action(Action.PLUS).build();
-        ChangeNumberOfItemsRequestDto minusReq = ChangeNumberOfItemsRequestDto.builder().id(1L).action(Action.MINUS).build();
+        StepVerifier.create(service.changeNumberOfItems(req))
+                .expectNext(itemDto)
+                .verifyComplete();
 
-        return Stream.of(
-                Arguments.of(List.of(), Optional.of(item), plusReq, true, true, false, false, false),
-                Arguments.of(List.of(), Optional.of(item), minusReq, true, false, false, false, false),
-                Arguments.of(List.of(emptyCart), Optional.of(item), plusReq, false, true, false, false, false),
-                Arguments.of(List.of(emptyCart), Optional.of(item), minusReq, false, false, false, false, false),
-                Arguments.of(List.of(cartWithItem), Optional.of(item), plusReq, false, false, true, false, false),
-                Arguments.of(List.of(cartWithItem), Optional.of(item), minusReq, false, false, true, false, false),
-                Arguments.of(List.of(cartWithItem), Optional.of(item), minusReq, false, false, false, true, false),
-                Arguments.of(List.of(cartWithItem), Optional.empty(), plusReq, false, false, false, false, true)
-        );
+        verify(cartRepository, times(2)).save(any(Cart.class));
+        verify(cartItemRepository).save(any(CartItem.class));
+        verify(cartRepository, atLeastOnce()).findById(1L);
     }
 
-    private Cart getCartWithItem(Long itemId, int count, BigDecimal price) {
+    /**
+     * Товар уже находится в корзине, action=PLUS → count увеличивается.
+     */
+    @Test
+    @DisplayName("changeNumberOfItems — товар найден, increment")
+    void testChangeNumberOfItemsIncrement() {
         Cart cart = new Cart();
-        Item item = getItem(itemId, price);
-        CartItem cartItem = new CartItem();
-        cartItem.setItem(item);
-        cartItem.setCount(count);
-        cartItem.setPrice(price);
-        cart.setItems(new ArrayList<>(List.of(cartItem)));
-        return cart;
+        cart.setId(5L);
+
+        CartItem ci = new CartItem();
+        ci.setCartId(5L);
+        ci.setItemId(20L);
+        ci.setCount(2);
+        ci.setPrice(BigDecimal.valueOf(50));
+
+        Item item = new Item();
+        item.setId(20L);
+        item.setPrice(BigDecimal.valueOf(50));
+
+        ItemDto dto = new ItemDto(20L, null, null, null, BigDecimal.valueOf(50), 1);
+
+        ChangeNumberOfItemsRequestDto req =
+                ChangeNumberOfItemsRequestDto.builder()
+                        .id(20L)
+                        .action(Action.PLUS)
+                        .build();
+
+        when(cartRepository.findAll()).thenReturn(Flux.just(cart));
+        when(cartItemRepository.findAllByCartId(5L)).thenReturn(Flux.just(ci));
+        when(cartItemRepository.save(any())).thenReturn(Mono.just(ci));
+        when(itemRepository.findById(20L)).thenReturn(Mono.just(item));
+        when(itemMapper.toDto(item)).thenReturn(dto);
+
+        StepVerifier.create(service.changeNumberOfItems(req))
+                .expectNext(dto)
+                .verifyComplete();
+
+        verify(cartItemRepository).save(argThat(c -> c.getCount() == 3));
     }
 
-    private Item getItem(Long id, BigDecimal price) {
+    /**
+     * Товар в корзине, action=MINUS → count уменьшается, но остаётся > 0.
+     */
+    @Test
+    @DisplayName("changeNumberOfItems — decrement, товар остаётся в корзине")
+    void testChangeNumberOfItemsDecrementStays() {
+        Cart cart = new Cart();
+        cart.setId(5L);
+
+        CartItem ci = new CartItem();
+        ci.setCartId(5L);
+        ci.setItemId(20L);
+        ci.setCount(2);
+        ci.setPrice(BigDecimal.valueOf(50));
+
         Item item = new Item();
-        item.setId(id);
-        item.setPrice(price);
-        return item;
+        item.setId(20L);
+
+        ItemDto dto = new ItemDto(20L, null, null, null, BigDecimal.valueOf(50), 1);
+
+        ChangeNumberOfItemsRequestDto req =
+                ChangeNumberOfItemsRequestDto.builder()
+                        .id(20L)
+                        .action(Action.MINUS)
+                        .build();
+
+        when(cartRepository.findAll()).thenReturn(Flux.just(cart));
+        when(cartItemRepository.findAllByCartId(5L)).thenReturn(Flux.just(ci));
+        when(cartItemRepository.save(any())).thenReturn(Mono.just(ci));
+        when(itemRepository.findById(20L)).thenReturn(Mono.just(item));
+        when(itemMapper.toDto(item)).thenReturn(dto);
+
+        StepVerifier.create(service.changeNumberOfItems(req))
+                .expectNext(dto)
+                .verifyComplete();
+
+        verify(cartItemRepository).save(argThat(c -> c.getCount() == 1));
+    }
+
+    /**
+     * count становится 0 → CartItem удаляется, выполняется пересчёт тотала.
+     */
+    @Test
+    @DisplayName("changeNumberOfItems — decrement до 0 → удаление товара")
+    void testChangeNumberOfItemsDecrementToZero() {
+        Cart cart = new Cart();
+        cart.setId(7L);
+
+        CartItem ci = new CartItem();
+        ci.setCartId(7L);
+        ci.setItemId(30L);
+        ci.setCount(1);
+        ci.setPrice(BigDecimal.TEN);
+
+        ChangeNumberOfItemsRequestDto req =
+                ChangeNumberOfItemsRequestDto.builder()
+                        .id(30L)
+                        .action(Action.MINUS)
+                        .build();
+
+        when(cartRepository.findAll())
+                .thenReturn(Flux.just(cart));
+        when(cartItemRepository.findAllByCartId(7L))
+                .thenReturn(Flux.just(ci))
+                .thenReturn(Flux.empty());
+        when(cartItemRepository.delete(ci))
+                .thenReturn(Mono.empty());
+        when(cartRepository.findById(7L))
+                .thenReturn(Mono.just(cart));
+        when(cartRepository.save(any()))
+                .thenReturn(Mono.just(cart));
+
+        Item item = new Item();
+        item.setId(30L);
+        item.setPrice(BigDecimal.TEN);
+        when(itemRepository.findById(30L)).thenReturn(Mono.just(item));
+
+        ItemDto dto = new ItemDto(30L, "title", "desc", "img/path", BigDecimal.TEN, 0);
+        when(itemMapper.toDto(item)).thenReturn(dto);
+
+        StepVerifier.create(service.changeNumberOfItems(req))
+                .expectNext(dto)
+                .verifyComplete();
+
+        verify(cartItemRepository).delete(ci);
+        verify(cartRepository).save(argThat(c ->
+                c.getTotal().compareTo(BigDecimal.ZERO) == 0
+        ));
+    }
+
+    /**
+     * Товар отсутствует в корзине, action=PLUS → создаётся новый CartItem.
+     */
+    @Test
+    @DisplayName("changeNumberOfItems — increment товара, которого нет в корзине")
+    void testChangeNumberOfItemsIncrementNewItem() {
+        Cart cart = new Cart();
+        cart.setId(3L);
+
+        Item item = new Item();
+        item.setId(50L);
+        item.setPrice(BigDecimal.valueOf(20));
+
+        ItemDto dto = new ItemDto(50L, null, null, null, BigDecimal.valueOf(20), 1);
+
+        ChangeNumberOfItemsRequestDto req =
+                ChangeNumberOfItemsRequestDto.builder()
+                        .id(50L)
+                        .action(Action.PLUS)
+                        .build();
+
+        when(cartRepository.findAll()).thenReturn(Flux.just(cart));
+        when(cartItemRepository.findAllByCartId(3L)).thenReturn(Flux.empty());
+
+        when(itemRepository.findById(50L)).thenReturn(Mono.just(item));
+        when(cartItemRepository.save(any())).thenReturn(Mono.just(new CartItem()));
+
+        when(cartItemRepository.findAllByCartId(3L)).thenReturn(Flux.empty());
+        when(cartRepository.findById(3L)).thenReturn(Mono.just(cart));
+        when(cartRepository.save(any(Cart.class))).thenReturn(Mono.just(cart));
+
+        when(itemMapper.toDto(item)).thenReturn(dto);
+
+        StepVerifier.create(service.changeNumberOfItems(req))
+                .expectNext(dto)
+                .verifyComplete();
+    }
+
+    /**
+     * getItemsInTheCart — сбор DTO
+     */
+    @Test
+    @DisplayName("getItemsInTheCart — корректная сборка CartDto")
+    void testGetItemsInTheCart() {
+        Cart cart = new Cart();
+        cart.setId(1L);
+
+        CartItem ci = new CartItem();
+        ci.setCartId(1L);
+        ci.setItemId(10L);
+        ci.setCount(2);
+        ci.setPrice(BigDecimal.valueOf(30));
+
+        Item item = new Item();
+        item.setId(10L);
+        item.setPrice(BigDecimal.valueOf(30));
+
+        ItemDto itemDto = new ItemDto(10L, null, null, null, BigDecimal.valueOf(30), 1);
+        CartItemDto expectedCI =
+                new CartItemDto(itemDto, 2, BigDecimal.valueOf(30));
+
+        when(cartRepository.findAll()).thenReturn(Flux.just(cart));
+        when(cartItemRepository.findAllByCartId(1L)).thenReturn(Flux.just(ci));
+        when(itemRepository.findById(10L)).thenReturn(Mono.just(item));
+        when(itemMapper.toDto(item)).thenReturn(itemDto);
+
+        StepVerifier.create(service.getItemsInTheCart())
+                .expectNextMatches(result ->
+                        result.id() == 1 &&
+                                result.items().size() == 1 &&
+                                result.items().get(0).count() == 2 &&
+                                result.total().compareTo(BigDecimal.valueOf(60)) == 0
+                )
+                .verifyComplete();
+    }
+
+    /**
+     * changeNumberOfItemsFromCart — вызывает changeNumberOfItems + getItemsInTheCart
+     */
+    @Test
+    @DisplayName("changeNumberOfItemsFromCart — цепочка вызовов change + getItems")
+    void testChangeNumberOfItemsFromCart() {
+        ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
+                .id(5L)
+                .action(Action.PLUS)
+                .build();
+
+        Cart cart = new Cart();
+        cart.setId(1L);
+
+        when(cartRepository.findAll()).thenReturn(Flux.just(cart));
+        when(cartItemRepository.findAllByCartId(1L)).thenReturn(Flux.empty());
+
+        Item item = new Item();
+        item.setId(5L);
+        item.setPrice(BigDecimal.TEN);
+
+        ItemDto dto = new ItemDto(5L, null, null, null, BigDecimal.TEN, 1);
+
+        when(itemRepository.findById(5L)).thenReturn(Mono.just(item));
+        when(itemMapper.toDto(item)).thenReturn(dto);
+        when(cartItemRepository.save(any())).thenReturn(Mono.just(new CartItem()));
+        when(cartRepository.findById(anyLong())).thenReturn(Mono.just(cart));
+        when(cartRepository.save(any())).thenReturn(Mono.just(cart));
+
+        StepVerifier.create(service.changeNumberOfItemsFromCart(req))
+                .assertNext(res -> {
+                    assertEquals(1L, res.id());
+                    assertTrue(res.items().isEmpty(), "Корзина должна быть пустой");
+                })
+                .verifyComplete();
+
+        verify(cartItemRepository, atLeastOnce()).save(any());
+        verify(itemRepository).findById(5L);
+    }
+
+    /**
+     * Имитирует ситуацию, когда из корзины удаляется последний товар (action = MINUS),
+     * и это побочно вызывает recalcAndSaveCartTotal.changeNumberOfItems
+     * — вызывает changeNumberOfItems + getItemsInTheCart
+     */
+    @Test
+    @DisplayName("changeNumberOfItems — цепочка вызовов change + getItems + ")
+    void testRecalcTriggeredOnItemDelete() {
+        long cartId = 1L;
+        long itemId = 100L;
+
+        ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
+                .id(itemId)
+                .action(Action.MINUS)
+                .sort(null)
+                .pageNumber(null)
+                .pageSize(null)
+                .build();
+
+        Cart cart = new Cart();
+        cart.setId(cartId);
+
+        when(cartRepository.findAll()).thenReturn(Flux.just(cart));
+        when(cartRepository.save(any())).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+
+        CartItem ci = new CartItem();
+        ci.setCartId(cartId);
+        ci.setItemId(itemId);
+        ci.setCount(1);
+        ci.setPrice(BigDecimal.TEN);
+
+        CartItem ci2 = new CartItem();
+        ci2.setCartId(cartId);
+        ci2.setPrice(BigDecimal.valueOf(5));
+        ci2.setCount(3);
+
+        when(cartItemRepository.findAllByCartId(cartId))
+                .thenReturn(Flux.just(ci))
+                .thenReturn(Flux.just(ci2));
+        when(cartItemRepository.delete(ci)).thenReturn(Mono.empty());
+        when(cartRepository.findById(cartId)).thenReturn(Mono.just(cart));
+
+        Item removedItem = new Item();
+        removedItem.setId(itemId);
+        removedItem.setTitle("title");
+        removedItem.setDescription("desc");
+        removedItem.setImgPath("img");
+        removedItem.setPrice(BigDecimal.TEN);
+
+        when(itemRepository.findById(itemId)).thenReturn(Mono.just(removedItem));
+        when(itemMapper.toDto(removedItem)).thenReturn(new ItemDto(
+                itemId, "title", "desc", "img", BigDecimal.TEN, 0));
+
+        StepVerifier.create(service.changeNumberOfItems(request))
+                .expectNextCount(1)
+                .verifyComplete();
+
+        verify(cartRepository).save(argThat(c ->
+                c.getTotal().compareTo(BigDecimal.valueOf(15)) == 0
+        ));
     }
 }

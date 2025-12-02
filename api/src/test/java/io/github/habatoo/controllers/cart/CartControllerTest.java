@@ -12,8 +12,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ui.Model;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.math.BigDecimal;
+import java.util.List;
+
 import static org.mockito.Mockito.*;
 
 /**
@@ -41,14 +45,17 @@ class CartControllerTest {
     @Test
     @DisplayName("GET \"/cart/items\" — отображение корзины пользователя")
     void showCartTest() {
-        CartDto cart = mock(CartDto.class);
+        Mono<CartDto> cart = Mono.just(new CartDto(1L, List.of(), BigDecimal.ONE));
         when(cartService.getItemsInTheCart()).thenReturn(cart);
 
-        String result = cartController.showCart(model);
+        Mono<String> result = cartController.showCart(model);
 
-        assertEquals("cart", result);
+        StepVerifier.create(result)
+                .expectNext("cart")
+                .verifyComplete();
+
         verify(cartService).getItemsInTheCart();
-        verify(model).addAttribute("cart", cart);
+        verify(model).addAttribute(eq("cart"), any(CartDto.class));
     }
 
     /**
@@ -61,7 +68,7 @@ class CartControllerTest {
     void changeNumberOfItemsFromCartTest() {
         Long id = 51L;
         String action = "PLUS";
-        CartDto cart = mock(CartDto.class);
+        Mono<CartDto> cart = Mono.just(new CartDto(1L, List.of(), BigDecimal.ONE));
 
         ChangeNumberOfItemsRequestDto req =
                 ChangeNumberOfItemsRequestDto.builder()
@@ -72,10 +79,55 @@ class CartControllerTest {
         when(cartService.changeNumberOfItemsFromCart(any(ChangeNumberOfItemsRequestDto.class)))
                 .thenReturn(cart);
 
-        String result = cartController.changeNumberOfItemsFromCart(req, model);
+        Mono<String> result = cartController.changeNumberOfItemsFromCart(req, model);
 
-        assertEquals("cart", result);
+        StepVerifier.create(result)
+                .expectNext("cart")
+                .verifyComplete();
+
         verify(cartService).changeNumberOfItemsFromCart(refEq(req));
-        verify(model).addAttribute("cart", cart);
+        verify(model).addAttribute(eq("cart"), any(CartDto.class));
     }
+
+    /**
+     * GET /cart/items — если корзина не найдена, возвращается view "cart"
+     * и модель не изменяется.
+     */
+    @Test
+    @DisplayName("GET /cart/items — корзина не найдена, возвращается view cart без изменения модели")
+    void showCartNotFoundTest() {
+        when(cartService.getItemsInTheCart())
+                .thenReturn(Mono.empty());
+
+        Mono<String> result = cartController.showCart(model);
+
+        StepVerifier.create(result)
+                .expectNext("cart")
+                .verifyComplete();
+
+        verify(cartService).getItemsInTheCart();
+        verify(model, never()).addAttribute(eq("cart"), any());
+    }
+
+    /**
+     * POST /cart/items — если элемент корзины не найден, возвращается view "cart",
+     * при этом модель не заполняется объектом Cart.
+     */
+    @Test
+    @DisplayName("POST /cart/items — элемент корзины не найден, возвращается view cart без изменения модели")
+    void changeNumberOfItemsNotFoundTest() {
+        ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder().build();
+        when(cartService.changeNumberOfItemsFromCart(any(ChangeNumberOfItemsRequestDto.class)))
+                .thenReturn(Mono.empty());
+
+        Mono<String> result = cartController.changeNumberOfItemsFromCart(req, model);
+
+        StepVerifier.create(result)
+                .expectNext("cart")
+                .verifyComplete();
+
+        verify(cartService).changeNumberOfItemsFromCart(refEq(req));
+        verify(model, never()).addAttribute(eq("cart"), any());
+    }
+
 }

@@ -1,20 +1,19 @@
 spring:
-  datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${SPRING_DATASOURCE_HOST:localhost}:${SPRING_DATASOURCE_DB_PORT:5432}/${SPRING_DATASOURCE_DB_NAME:shop_db}}
+  r2dbc:
+    url: ${SPRING_DATASOURCE_URL:r2dbc:postgresql://${SPRING_DATASOURCE_HOST:localhost}:${SPRING_DATASOURCE_DB_PORT:5432}/${SPRING_DATASOURCE_DB_NAME:shop_db}}
     username: ${SPRING_DATASOURCE_DB_USERNAME:shop_admin}
     password: ${SPRING_DATASOURCE_DB_PASSWORD:shop_password}
-    hikari:
-      maximum-pool-size: 10
-      connection-timeout: 30000
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: validate
-
-liquibase:
-  enabled: true
-  driver-class-name: org.postgresql.Driver
-  url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://${SPRING_DATASOURCE_HOST:localhost}:${SPRING_DATASOURCE_DB_PORT:5432}/${SPRING_DATASOURCE_DB_NAME:shop_db}}
-  username: ${SPRING_DATASOURCE_DB_USERNAME:shop_admin}
-  password: ${SPRING_DATASOURCE_DB_PASSWORD:shop_password}
-  context: dev
+    pool:
+      enabled: true
+      initial-size: 10
+      max-size: 50
+      max-idle-time: 30s
+      max-life-time: 10m
+      validation-query: SELECT 1
+  liquibase:
+    enabled: true
+    url: jdbc:postgresql://${SPRING_DATASOURCE_HOST:localhost}:${SPRING_DATASOURCE_DB_PORT:5432}/${SPRING_DATASOURCE_DB_NAME:shop_db}
+    user: ${SPRING_DATASOURCE_DB_USERNAME:shop_admin}
+    password: ${SPRING_DATASOURCE_DB_PASSWORD:shop_password}
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    contexts: dev

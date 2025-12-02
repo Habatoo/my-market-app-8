@@ -13,7 +13,6 @@ import io.github.habatoo.mappers.ItemMapper;
 import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.ItemRepository;
 import io.github.habatoo.servicies.CartService;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,12 +21,18 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+import org.springframework.data.domain.Pageable;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -40,7 +45,8 @@ import static org.mockito.Mockito.*;
  * товара, изменение количества, несуществующего товара.
  */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("Тест загрузки ItemServiceImpl")
+@MockitoSettings(strictness = Strictness.LENIENT)
+@DisplayName("Unit-тесты ItemServiceImpl (реактивный стек)")
 class ItemServiceImplTest {
 
     @Mock
@@ -51,146 +57,268 @@ class ItemServiceImplTest {
     private CartService cartService;
     @Mock
     private ItemMapper mapper;
-
+    @InjectMocks
     private ItemServiceImpl service;
 
-    @BeforeEach
-    void setUp() {
-        service = new ItemServiceImpl(repository, cartItemRepository, cartService, mapper);
-    }
-
     /**
-     * Тест поиска товаров: поиск по title, сортировка, пагинация
+     * Тест поиска/сортировки/пагинации витрины.
      */
     @ParameterizedTest
     @MethodSource("itemsSearchCases")
-    @DisplayName("Поиск, сортировка, пагинация витрины с itemCounts")
-    void getItemsVariants(GetItemsRequestDto req, List<Item> all, List<Item> expectedPage) {
-        when(repository.findAll()).thenReturn(all);
-        when(mapper.toDto(anyList())).thenAnswer(inv -> {
-            Object arg = inv.getArgument(0);
-            if (arg instanceof List<?> list) {
-                @SuppressWarnings("unchecked")
-                List<Item> items = (List<Item>) list;
-                return items.stream()
-                        .map(item -> new ItemDto(item.getId(), item.getTitle(), item.getDescription(), "", item.getPrice(), 0))
+    @DisplayName("Поиск/сортировки/пагинация витрины c корректным itemCount")
+    void getItemsReactiveTest(GetItemsRequestDto req,
+                              List<Item> all,
+                              List<Item> expectedPage) {
+
+        String rawSearch = req.getSearch();
+        boolean noSearch = rawSearch == null || rawSearch.trim().isEmpty();
+        String search = noSearch ? "" : rawSearch.trim();
+
+        if (noSearch) {
+            when(repository.findAllBy(any(Pageable.class)))
+                    .thenAnswer(inv -> {
+                        Pageable pageable = inv.getArgument(0);
+                        List<Item> page = all.stream()
+                                .sorted(buildComparator(req))
+                                .skip((long) pageable.getPageNumber() * pageable.getPageSize())
+                                .limit(pageable.getPageSize())
+                                .toList();
+                        return Flux.fromIterable(page);
+                    });
+
+            when(repository.count())
+                    .thenReturn(Mono.just((long) all.size()));
+        } else {
+            when(repository.findByTitleContainingOrDescriptionContaining(
+                    eq(search),
+                    eq(search),
+                    any(Pageable.class)
+            )).thenAnswer(inv -> {
+                Pageable pageable = inv.getArgument(2);
+                List<Item> page = all.stream()
+                        .filter(i -> (i.getTitle() != null
+                                && i.getTitle().toLowerCase().contains(search.toLowerCase()))
+                                || (i.getDescription() != null
+                                && i.getDescription().toLowerCase().contains(search.toLowerCase())))
+                        .sorted(buildComparator(req))
+                        .skip((long) pageable.getPageNumber() * pageable.getPageSize())
+                        .limit(pageable.getPageSize())
                         .toList();
-            }
-            throw new IllegalArgumentException("Argument for toDto is not a List<Item>");
-        });
-        CartDto cart = mock(CartDto.class);
-        when(cartService.getItemsInTheCart()).thenReturn(cart);
+                return Flux.fromIterable(page);
+            });
 
-        if (req.getSearch() == null) {
-            lenient().when(cartItemRepository.findCountByCartIdAndItemId(any(), any())).thenReturn(null);
+            when(repository.countByTitleContainingOrDescriptionContaining(eq(search), eq(search)))
+                    .thenReturn(Mono.just(
+                            all.stream()
+                                    .filter(i -> (i.getTitle() != null
+                                            && i.getTitle().toLowerCase().contains(search.toLowerCase()))
+                                            || (i.getDescription() != null
+                                            && i.getDescription().toLowerCase().contains(search.toLowerCase())))
+                                    .count()
+                    ));
         }
-        when(cartService.getItemsInTheCart()).thenReturn(cart);
 
-        ItemsDtoResponse response = service.getItems(req);
+        when(mapper.toDto(anyList())).thenAnswer(inv -> {
+            List<Item> items = inv.getArgument(0);
+            return items.stream()
+                    .map(item -> new ItemDto(
+                            item.getId(),
+                            item.getTitle(),
+                            item.getDescription(),
+                            item.getImgPath(),
+                            item.getPrice(),
+                            0
+                    ))
+                    .toList();
+        });
 
-        List<Long> actualIds = response.itemsRows().stream()
+        CartDto cart = mock(CartDto.class);
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cart));
+        when(cartItemRepository.findCountByCartIdAndItemId(any(), any()))
+                .thenReturn(Mono.just(0));
+
+        ItemsDtoResponse resp = service.getItems(req).block();
+
+        assertNotNull(resp);
+        assertEquals(cart, resp.cart());
+        assertNotNull(resp.paging());
+
+        List<Long> actualIds = resp.itemsRows().stream()
                 .flatMap(List::stream)
                 .map(ItemDto::id)
                 .filter(id -> id != -1)
                 .toList();
-        List<Long> expectedIds = expectedPage.stream().map(Item::getId).toList();
+
+        List<Long> expectedIds = expectedPage.stream()
+                .map(Item::getId)
+                .toList();
+
         assertEquals(expectedIds, actualIds);
-
-        int toFill = (response.itemsRows().size() * 3) - expectedIds.size();
-        long emptyCount = response.itemsRows().stream()
-                .flatMap(List::stream)
-                .filter(dto -> dto.id() == -1)
-                .count();
-        assertEquals(toFill, emptyCount);
-        assertEquals(cart, response.cart());
-        assertNotNull(response.paging());
     }
 
     /**
-     * Тест: пустой список товаров — пустая витрина
+     * Пустая витрина — пустой ответ.
      */
     @Test
-    @DisplayName("Пустой список товаров — пустая витрина")
-    void getItemsEmptyTest() {
+    @DisplayName("Пустая витрина: Flux пуст — пустой ответ")
+    void emptyItemsTest() {
         GetItemsRequestDto req = GetItemsRequestDto.builder().build();
-        when(repository.findAll()).thenReturn(List.of());
-        when(cartService.getItemsInTheCart()).thenReturn(mock(CartDto.class));
-        when(mapper.toDto(anyList())).thenReturn(List.of());
 
-        ItemsDtoResponse response = service.getItems(req);
+        when(repository.findAllBy(any(Pageable.class)))
+                .thenReturn(Flux.empty());
+        when(repository.count())
+                .thenReturn(Mono.just(0L));
 
-        assertTrue(response.itemsRows().isEmpty() || response.itemsRows().get(0).isEmpty());
+        when(cartService.getItemsInTheCart())
+                .thenReturn(Mono.just(mock(CartDto.class)));
+
+        when(mapper.toDto(anyList()))
+                .thenReturn(List.of());
+
+        ItemsDtoResponse resp = service.getItems(req).block();
+
+        assertNotNull(resp);
+        assertTrue(resp.itemsRows().isEmpty());
     }
 
     /**
-     * Тест поиска по описанию (description).
+     * Поиск по description.
      */
     @Test
-    @DisplayName("Поиск по description — фильтрует по подстроке")
-    void searchByDescriptionTest() {
-        GetItemsRequestDto req = GetItemsRequestDto.builder().search("описание").build();
-        when(repository.findAll()).thenReturn(List.of());
-        when(cartService.getItemsInTheCart()).thenReturn(mock(CartDto.class));
-        when(mapper.toDto(anyList())).thenReturn(List.of(new ItemDto(2L, "title", "СуперОписание", "", BigDecimal.TEN, 0)));
+    @DisplayName("Поиск по description — корректная фильтрация")
+    void searchDescriptionTest() {
+        GetItemsRequestDto req = GetItemsRequestDto.builder()
+                .search("описание")
+                .build();
 
-        ItemsDtoResponse result = service.getItems(req);
+        Item item = new Item(10L, "T", "СуперОписание", "", BigDecimal.ONE, 0);
 
-        assertFalse(result.itemsRows().isEmpty());
+        when(repository.findByTitleContainingOrDescriptionContaining(
+                eq("описание"), eq("описание"), any(Pageable.class))
+        ).thenReturn(Flux.just(item));
+        when(repository.countByTitleContainingOrDescriptionContaining(
+                eq("описание"), eq("описание"))
+        ).thenReturn(Mono.just(1L));
+        when(mapper.toDto(anyList()))
+                .thenReturn(List.of(new ItemDto(
+                        10L, "T", "СуперОписание", "", BigDecimal.ONE, 0)));
+        when(cartService.getItemsInTheCart())
+                .thenReturn(Mono.just(mock(CartDto.class)));
+        when(cartItemRepository.findCountByCartIdAndItemId(any(), any()))
+                .thenReturn(Mono.just(0));
+
+        ItemsDtoResponse resp = service.getItems(req).block();
+
+        assertNotNull(resp);
+        assertFalse(resp.itemsRows().isEmpty());
+        assertEquals(1, resp.itemsRows().size());
+        assertEquals("СуперОписание", resp.itemsRows().get(0).get(0).description());
     }
 
     /**
-     * Тест получения отдельного товара — товар найден.
+     * Успешная загрузка карточки товара.
      */
     @ParameterizedTest
     @NullSource
     @ValueSource(ints = {2, 0})
-    @DisplayName("Получение отдельного товара — товар найден с разными cartCount")
-    void getItemFoundTest(Integer ans) {
+    @DisplayName("Получение товара — корректный cartCount при разных значениях")
+    void getItemFoundReactiveTest(Integer foundCount) {
         Item item = new Item(5L, "A", null, "", BigDecimal.ONE, 0);
-        when(repository.findById(5L)).thenReturn(Optional.of(item));
-        when(mapper.toDto(item)).thenReturn(new ItemDto(5L, "A", null, "", BigDecimal.ONE, 0));
+        when(repository.findById(5L)).thenReturn(Mono.just(item));
 
-        CartDto cart = mock(CartDto.class);
-        when(cartItemRepository.findCountByCartIdAndItemId(any(), eq(item.getId()))).thenReturn(ans);
-        when(cartService.getItemsInTheCart()).thenReturn(cart);
+        ItemDto expectedDto = new ItemDto(5L, "A", null, "", BigDecimal.ONE, 0);
+        when(mapper.toDto(item)).thenReturn(expectedDto);
+        when(cartItemRepository.findCountByCartIdAndItemId(any(), eq(5L)))
+                .thenReturn(foundCount == null ? Mono.empty() : Mono.just(foundCount));
 
-        ItemDtoResponse resp = service.getItem(5L);
+        CartDto cartDto = mock(CartDto.class);
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
 
-        assertEquals(ans == null ? 0 : ans, resp.cartCount());
-        assertEquals(5L, resp.item().id());
+        ItemDtoResponse resp = service.getItem(5L).block();
+
+        assertNotNull(resp);
+        assertEquals(expectedDto, resp.item());
+        assertEquals(foundCount == null ? 0 : foundCount, resp.cartCount());
     }
 
     /**
-     * Тест падения при отсутствии товара.
+     * Ошибка при отсутствии товара.
      */
     @Test
-    @DisplayName("Получение отсутствующего товара — выбрасывает исключение")
-    void getItemNotFoundTest() {
-        when(repository.findById(101L)).thenReturn(Optional.empty());
+    @DisplayName("Получение несуществующего товара — ошибка")
+    void getItemNotFoundReactiveTest() {
+        when(repository.findById(101L)).thenReturn(Mono.empty());
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.empty());
 
-        assertThrows(IllegalStateException.class, () -> service.getItem(101L));
+        assertThrows(
+                IllegalStateException.class,
+                () -> service.getItem(101L).block()
+        );
     }
 
     /**
-     * Тест изменения количества товара — вызов CartService и возврат актуального количества.
+     * Изменение количества товаров.
+     */
+    @Test
+    @DisplayName("Изменение количества товара — корректный результат")
+    void changeNumberOfItemsFromPageEmpty() {
+        ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
+                .id(23L)
+                .action(Action.PLUS)
+                .build();
+
+        Item item = new Item();
+        item.setId(23L);
+        item.setTitle("TestItem");
+        ItemDto fallbackDto = new ItemDto(23L, "TestItem", null, null, BigDecimal.ZERO, 0);
+        when(mapper.toDto(item)).thenReturn(fallbackDto);
+        when(repository.findById(23L)).thenReturn(Mono.just(item));
+
+        when(cartService.changeNumberOfItems(req)).thenReturn(Mono.empty());
+
+        when(cartItemRepository.findCountByCartIdAndItemId(1L, 23L)).thenReturn(Mono.just(1));
+        CartDto cartDto = CartDto.builder()
+                .id(1L)
+                .items(List.of())
+                .total(BigDecimal.ZERO)
+                .build();
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
+
+        service.changeNumberOfItemsFromPage(req).block();
+
+        verify(repository).findById(23L);
+        verify(mapper).toDto(item);
+        verify(cartService).changeNumberOfItems(req);
+    }
+
+    /**
+     * Изменение количества товаров.
      */
     @ParameterizedTest
     @NullSource
-    @ValueSource(ints = {4, 0})
-    @DisplayName("Изменение количества товара из карточки")
-    void changeNumberOfItemsFromPageTest(Integer ans) {
-        ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder().id(23L).action(Action.PLUS).build();
-        ItemDto itemDto = mock(ItemDto.class);
+    @ValueSource(ints = {0})
+    @DisplayName("Изменение количества товара — корректный результат")
+    void changeNumberReactiveTest(Integer foundCount) {
+        ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
+                .id(23L)
+                .action(Action.PLUS)
+                .build();
+
+        ItemDto returnedItem = mock(ItemDto.class);
         CartDto cartDto = mock(CartDto.class);
+        when(cartDto.id()).thenReturn(1L);
 
-        when(cartService.changeNumberOfItems(req)).thenReturn(itemDto);
-        when(cartService.getItemsInTheCart()).thenReturn(cartDto);
-        when(cartItemRepository.findCountByCartIdAndItemId(any(), eq(23L))).thenReturn(ans);
+        when(cartService.changeNumberOfItems(req)).thenReturn(Mono.just(returnedItem));
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
 
-        ItemDtoResponse resp = service.changeNumberOfItemsFromPage(req);
+        when(cartItemRepository.findCountByCartIdAndItemId(anyLong(), anyLong()))
+                .thenReturn(foundCount == null ? Mono.empty() : Mono.just(foundCount));
 
-        assertEquals(itemDto, resp.item());
-        assertEquals(ans == null ? 0 : ans, resp.cartCount());
+        ItemDtoResponse resp = service.changeNumberOfItemsFromPage(req).block();
+
+        assertNotNull(resp);
+        assertEquals(returnedItem, resp.item());
+        assertEquals(foundCount == null ? 0 : foundCount, resp.cartCount());
     }
 
     static Stream<Arguments> itemsSearchCases() {
@@ -297,5 +425,15 @@ class ItemServiceImplTest {
                         List.of(itemA)
                 )
         );
+    }
+
+    private Comparator<Item> buildComparator(GetItemsRequestDto req) {
+        if (req.getSort() == null) return (i1, i2) -> 0;
+
+        return switch (req.getSort()) {
+            case ALPHA -> Comparator.comparing(Item::getTitle, String.CASE_INSENSITIVE_ORDER);
+            case PRICE -> Comparator.comparing(Item::getPrice);
+            case NO -> (i1, i2) -> 0;
+        };
     }
 }

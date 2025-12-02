@@ -5,7 +5,9 @@ import io.github.habatoo.dto.enums.Action;
 import io.github.habatoo.dto.enums.Sort;
 import io.github.habatoo.dto.request.ChangeNumberOfItemsRequestDto;
 import io.github.habatoo.dto.request.GetItemsRequestDto;
-import io.github.habatoo.dto.response.*;
+import io.github.habatoo.dto.response.ItemDto;
+import io.github.habatoo.dto.response.ItemDtoResponse;
+import io.github.habatoo.dto.response.ItemsDtoResponse;
 import io.github.habatoo.servicies.CartService;
 import io.github.habatoo.servicies.ItemService;
 import org.junit.jupiter.api.DisplayName;
@@ -18,14 +20,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Objects;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 /**
@@ -46,6 +47,9 @@ class ItemControllerTest {
     @Mock
     private Model model;
 
+    @Mock
+    private BindingResult bindingResult;
+
     @InjectMocks
     private ItemController itemController;
 
@@ -55,7 +59,7 @@ class ItemControllerTest {
      */
     @ParameterizedTest
     @MethodSource("paramsCombinations")
-    @DisplayName("GET \"/items\" — все варианты параметров (null, пустые, корректные)")
+    @DisplayName("GET /items — все варианты параметров (null, пустые, корректные)")
     void testGetItemsVariants(String search, Sort sort, Integer pageNumber, Integer pageSize) {
         GetItemsRequestDto req = GetItemsRequestDto.builder()
                 .search(search)
@@ -64,21 +68,45 @@ class ItemControllerTest {
                 .pageSize(pageSize)
                 .build();
 
-        ItemsDtoResponse itemsResp = mock(ItemsDtoResponse.class);
-        when(itemService.getItems(any(GetItemsRequestDto.class))).thenReturn(itemsResp);
-        when(itemsResp.cart()).thenReturn(mock(CartDto.class));
-        when(itemsResp.itemsRows()).thenReturn(List.of());
-        when(itemsResp.paging()).thenReturn(mock(Paging.class));
+        ItemsDtoResponse response = mock(ItemsDtoResponse.class);
+        when(itemService.getItems(any(GetItemsRequestDto.class))).thenReturn(Mono.just(response));
 
-        String result = itemController.getItems(req, model);
+        Mono<String> result = itemController.getItems(req, model);
 
-        assertEquals("items", result);
+        StepVerifier.create(result)
+                .expectNext("items")
+                .verifyComplete();
+
         verify(itemService).getItems(any(GetItemsRequestDto.class));
-        verify(model).addAttribute("cart", itemsResp.cart());
-        verify(model).addAttribute("items", itemsResp.itemsRows());
+        verify(model).addAttribute("cart", response.cart());
+        verify(model).addAttribute("items", response.itemsRows());
         verify(model).addAttribute("search", (search == null ? "" : search));
         verify(model).addAttribute("sort", sort);
-        verify(model).addAttribute("paging", itemsResp.paging());
+        verify(model).addAttribute("paging", response.paging());
+        verify(model).addAttribute("itemCounts", response.itemCounts());
+    }
+
+    /**
+     * Тест получения в данных ошибки.
+     * Проверяет исключение при ошибке в данных.
+     */
+    @Test
+    @DisplayName("GET /items — ошибка в данных")
+    void changeNumberOfItems_shouldReturnError_whenBindingResultHasErrors() {
+        ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
+                .action(Action.MINUS)
+                .build();
+
+        when(bindingResult.hasErrors()).thenReturn(true);
+
+        Mono<String> result = itemController.changeNumberOfItems(req, bindingResult);
+
+        StepVerifier.create(result)
+                .expectErrorMatches(ex ->
+                        ex instanceof IllegalArgumentException
+                                && ex.getMessage().equals("Некорректные параметры изменения товара")
+                )
+                .verify();
     }
 
     /**
@@ -86,25 +114,26 @@ class ItemControllerTest {
      * Проверяет генерацию правильной ссылки и вызов сервиса изменения количеста.
      */
     @Test
-    @DisplayName("POST \"/items\" — изменение количества товара, корректный редирект")
+    @DisplayName("POST /items — изменение количества товара, корректный редирект")
     void testChangeNumberOfItems() {
-        Long id = 1L;
         ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
-                .id(id)
+                .id(1L)
                 .search("searchQuery")
                 .action(Action.PLUS)
                 .sort(Sort.PRICE)
                 .pageNumber(2)
                 .pageSize(10)
                 .build();
-        when(cartService.changeNumberOfItems(eq(req))).thenReturn(mock(ItemDto.class));
 
-        String result = itemController.changeNumberOfItems(req);
+        when(cartService.changeNumberOfItems(eq(req))).thenReturn(Mono.just(mock(ItemDto.class)));
 
-        assertEquals("redirect:/items?search=searchQuery&sort=PRICE&pageSize=10&pageNumber=2", result);
-        verify(cartService).changeNumberOfItems(
-                argThat(requestDto -> requestDto.getId().equals(id)
-                        && requestDto.getAction() == Action.PLUS));
+        Mono<String> result = itemController.changeNumberOfItems(req, mock(BindingResult.class));
+
+        StepVerifier.create(result)
+                .expectNext("redirect:/items?search=searchQuery&sort=PRICE&pageSize=10&pageNumber=2")
+                .verifyComplete();
+
+        verify(cartService).changeNumberOfItems(eq(req));
     }
 
     /**
@@ -112,20 +141,21 @@ class ItemControllerTest {
      * Проверяет передачу в модель данных товара и количества.
      */
     @Test
-    @DisplayName("GET \"/items/{id}\" — отображение карточки товара")
+    @DisplayName("GET /items/{id} — отображение карточки товара")
     void testGetItemPage() {
         Long id = 42L;
-        ItemDtoResponse itemResp = mock(ItemDtoResponse.class);
-        when(itemService.getItem(id)).thenReturn(itemResp);
-        when(itemResp.item()).thenReturn(mock(ItemDto.class));
-        when(itemResp.cartCount()).thenReturn(3);
+        ItemDtoResponse itemResponse = mock(ItemDtoResponse.class);
+        when(itemService.getItem(id)).thenReturn(Mono.just(itemResponse));
 
-        String result = itemController.getItemPage(id, model);
+        Mono<String> result = itemController.getItemPage(id, model);
 
-        assertEquals("item", result);
+        StepVerifier.create(result)
+                .expectNext("item")
+                .verifyComplete();
+
         verify(itemService).getItem(id);
-        verify(model).addAttribute("item", itemResp.item());
-        verify(model).addAttribute("cartCount", 3);
+        verify(model).addAttribute("item", itemResponse.item());
+        verify(model).addAttribute("cartCount", itemResponse.cartCount());
     }
 
     /**
@@ -133,36 +163,33 @@ class ItemControllerTest {
      * Проверяет вызов метода сервиса и заполнение модели актуальными данными.
      */
     @Test
-    @DisplayName("POST \"/items/{id}\" — изменение количества, возврат обновлённой карточки товара")
+    @DisplayName("POST /items/{id} — изменение количества товара и возврат карточки")
     void testChangeItemFromItemPage() {
         Long id = 12L;
         ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
-                .id(id)
-                .search("searchQuery")
                 .action(Action.MINUS)
-                .pageNumber(10)
-                .pageSize(2)
                 .build();
-        ItemDtoResponse item = mock(ItemDtoResponse.class);
-        when(itemService.changeNumberOfItemsFromPage(eq(req))).thenReturn(item);
+        req.setId(id);
 
-        String result = itemController.changeItemFromItemPage(id, req, model);
+        ItemDtoResponse itemResponse = mock(ItemDtoResponse.class);
+        when(itemService.changeNumberOfItemsFromPage(eq(req))).thenReturn(Mono.just(itemResponse));
 
-        assertEquals("item", result);
-        verify(itemService).changeNumberOfItemsFromPage(argThat(requestDto ->
-                requestDto.getId().equals(id) && requestDto.getAction() == Action.MINUS));
-        verify(model).addAttribute("item", item.item());
-        verify(model).addAttribute("cartCount", item.cartCount());
+        Mono<String> result = itemController.changeItemFromItemPage(id, req, model);
+
+        StepVerifier.create(result)
+                .expectNext("item")
+                .verifyComplete();
+
+        verify(itemService).changeNumberOfItemsFromPage(eq(req));
+        verify(model).addAttribute("item", itemResponse.item());
+        verify(model).addAttribute("cartCount", itemResponse.cartCount());
     }
-
 
     @ParameterizedTest
     @MethodSource("redirectParams")
-    @DisplayName("POST /changeNumberOfItems — все варианты формирования redirect")
+    @DisplayName("POST /changeNumberOfItems — проверка всех комбинаций формирования redirect")
     void changeNumberOfItemsRedirectTest(
             String search, Sort sort, Integer pageNumber, Integer pageSize,
-            String expectedSearch, String expectedSort,
-            int expectedPageSize, int expectedPageNumber,
             String expectedRedirect
     ) {
         ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
@@ -172,36 +199,51 @@ class ItemControllerTest {
                 .pageNumber(pageNumber)
                 .build();
 
-        String redirect = itemController.changeNumberOfItems(req);
+        BindingResult binding = mock(BindingResult.class);
 
-        assertEquals(expectedRedirect, redirect);
+        when(cartService.changeNumberOfItems(any(ChangeNumberOfItemsRequestDto.class)))
+                .thenReturn(Mono.just(mock(ItemDto.class)));
 
-        Map<String, String> params = Arrays.stream(redirect.substring(redirect.indexOf("?")+1).split("&"))
-                .map(kv -> kv.split("=", 2))
-                .collect(Collectors.toMap(parts -> parts[0], parts -> parts.length == 2 ? parts[1] : ""));
+        Mono<String> redirectMono = itemController.changeNumberOfItems(req, binding);
 
-        assertEquals(expectedSearch, params.get("search"));
-        assertEquals(expectedSort, params.get("sort"));
-        assertEquals(String.valueOf(expectedPageSize), params.get("pageSize"));
-        assertEquals(String.valueOf(expectedPageNumber), params.get("pageNumber"));
+        StepVerifier.create(redirectMono)
+                .expectNext(expectedRedirect)
+                .verifyComplete();
+
+        verify(cartService).changeNumberOfItems(argThat(dto ->
+                Objects.equals(dto.getSearch(), search) &&
+                        dto.getSort() == sort &&
+                        Objects.equals(dto.getPageNumber(), pageNumber) &&
+                        Objects.equals(dto.getPageSize(), pageSize)
+        ));
     }
 
-    static Stream<Arguments> redirectParams() {
+    private static Stream<Arguments> redirectParams() {
         return Stream.of(
-                Arguments.of(null, null, null, null, "", "NO", 5, 1,
+                Arguments.of(null, null, null, null,
                         "redirect:/items?search=&sort=NO&pageSize=5&pageNumber=1"),
-                Arguments.of("", Sort.NO, 1, 5, "", "NO", 5, 1,
-                        "redirect:/items?search=&sort=NO&pageSize=5&pageNumber=1"),
-                Arguments.of("поиск", Sort.ALPHA, 2, 10, "поиск", "ALPHA", 10, 2,
-                        "redirect:/items?search=поиск&sort=ALPHA&pageSize=10&pageNumber=2"),
-                Arguments.of("   ", Sort.PRICE, null, null, "   ", "PRICE", 5, 1,
-                        "redirect:/items?search=   &sort=PRICE&pageSize=5&pageNumber=1"),
-                Arguments.of(null, null, null, 2, "", "NO", 2, 1,
-                        "redirect:/items?search=&sort=NO&pageSize=2&pageNumber=1"),
-                Arguments.of(null, null, 3, null, "", "NO", 5, 3,
+                Arguments.of("phone", null, null, null,
+                        "redirect:/items?search=phone&sort=NO&pageSize=5&pageNumber=1"),
+                Arguments.of(null, Sort.PRICE, null, null,
+                        "redirect:/items?search=&sort=PRICE&pageSize=5&pageNumber=1"),
+                Arguments.of(null, null, 3, null,
                         "redirect:/items?search=&sort=NO&pageSize=5&pageNumber=3"),
-                Arguments.of("text", Sort.NO, null, null, "text", "NO", 5, 1,
-                        "redirect:/items?search=text&sort=NO&pageSize=5&pageNumber=1")
+                Arguments.of(null, null, null, 20,
+                        "redirect:/items?search=&sort=NO&pageSize=20&pageNumber=1"),
+                Arguments.of("text", Sort.ALPHA, null, null,
+                        "redirect:/items?search=text&sort=ALPHA&pageSize=5&pageNumber=1"),
+                Arguments.of("book", null, 2, null,
+                        "redirect:/items?search=book&sort=NO&pageSize=5&pageNumber=2"),
+                Arguments.of("note", null, null, 9,
+                        "redirect:/items?search=note&sort=NO&pageSize=9&pageNumber=1"),
+                Arguments.of(null, Sort.PRICE, 2, 50,
+                        "redirect:/items?search=&sort=PRICE&pageSize=50&pageNumber=2"),
+                Arguments.of("laptop", Sort.ALPHA, 1, 10,
+                        "redirect:/items?search=laptop&sort=ALPHA&pageSize=10&pageNumber=1"),
+                Arguments.of("", Sort.NO, 5, 15,
+                        "redirect:/items?search=&sort=NO&pageSize=15&pageNumber=5"),
+                Arguments.of("   ", Sort.PRICE, null, null,
+                        "redirect:/items?search=   &sort=PRICE&pageSize=5&pageNumber=1")
         );
     }
 

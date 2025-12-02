@@ -4,19 +4,15 @@ import io.github.habatoo.dto.response.CartDto;
 import io.github.habatoo.entity.Cart;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-import org.mapstruct.MappingConstants;
+import org.mapstruct.ReportingPolicy;
 
 import java.util.List;
 
-@Mapper(
-        componentModel = MappingConstants.ComponentModel.SPRING,
-        uses = {CartItemMapper.class}
-)
+@Mapper(componentModel = "spring", uses = {CartItemMapper.class}, unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface CartMapper {
-    List<CartDto> toDto(List<Cart> entities);
 
-    @Mapping(target = "id", source = "id")
-    @Mapping(target = "items", source = "items")
-    @Mapping(target = "total", source = "total")
+    @Mapping(target = "items", ignore = true)
     CartDto toDto(Cart entity);
+
+    List<CartDto> toDto(List<Cart> entities);
 }

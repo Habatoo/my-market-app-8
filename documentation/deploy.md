@@ -4,7 +4,13 @@
    <br> Обеспечить наличие секртетов в `./env/.env` 
    <br> Содержимое файла `.env`
 ```text
-
+SPRING_DATASOURCE_URL=r2dbc:postgresql://shop-db:5432/shop_db
+SPRING_DATASOURCE_JDBC_URL=jdbc:postgresql:://shop-db:5432/shop_db
+SPRING_DATASOURCE_USERNAME=shop_admin
+SPRING_DATASOURCE_PASSWORD=shop_password
+POSTGRES_DB=shop_db
+POSTGRES_USER=shop_admin
+POSTGRES_PASSWORD=shop_password
 ```
 
 2. **Собрать backend**
@@ -35,7 +41,7 @@ docker compose ps
 ```
 покажет статус сервисов. Убедитесь, что контейнеры my-blog-backend успешно работают.
 
-- Управление
+- Управление<br>
   Для остановки всех сервисов:
 ```bash
 docker compose down

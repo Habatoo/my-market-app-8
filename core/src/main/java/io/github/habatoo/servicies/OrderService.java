@@ -1,8 +1,8 @@
 package io.github.habatoo.servicies;
 
 import io.github.habatoo.dto.response.OrderDto;
-
-import java.util.List;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * Интерфейс для работы с заказами.
@@ -16,7 +16,7 @@ public interface OrderService {
      *
      * @return объект со списком заказов OrderDto
      */
-    List<OrderDto> getOrders();
+    Flux<OrderDto> getOrders();
 
     /**
      * Эндпоинт получения страницы заказа
@@ -26,5 +26,5 @@ public interface OrderService {
      * @param newOrder [newOrder] — true, если совершён переход с кнопки покупки товаров (по умолчанию false)
      * @return объект заказа OrderDto
      */
-    OrderDto getOrder(Long id, boolean newOrder);
+    Mono<OrderDto> getOrder(Long id, boolean newOrder);
 }

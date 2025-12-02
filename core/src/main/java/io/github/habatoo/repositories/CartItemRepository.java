@@ -1,14 +1,19 @@
 package io.github.habatoo.repositories;
 
 import io.github.habatoo.entity.CartItem;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import org.springframework.data.r2dbc.repository.Query;
+import org.springframework.data.repository.reactive.ReactiveCrudRepository;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * Репозиторий работы с товарами в корзине.
  */
-public interface CartItemRepository extends JpaRepository<CartItem, Long> {
-    @Query("SELECT ci.count FROM CartItem ci WHERE ci.cart.id = :cartId AND ci.item.id = :itemId")
-    Integer findCountByCartIdAndItemId(@Param("cartId") Long cartId, @Param("itemId") Long itemId);
+public interface CartItemRepository extends ReactiveCrudRepository<CartItem, Long> {
+    Flux<CartItem> findAllByCartId(Long cartId);
+
+    @Query("SELECT count FROM cart_items WHERE cart_id = :cartId AND item_id = :itemId")
+    Mono<Integer> findCountByCartIdAndItemId(Long cartId, Long itemId);
+
+    Mono<Void> deleteAllByCartId(Long cartId);
 }

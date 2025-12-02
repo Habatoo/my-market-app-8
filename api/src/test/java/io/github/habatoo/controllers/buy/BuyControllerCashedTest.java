@@ -2,104 +2,130 @@ package io.github.habatoo.controllers.buy;
 
 import io.github.habatoo.controllers.BuyController;
 import io.github.habatoo.dto.response.CartDto;
-import io.github.habatoo.dto.response.OrderDto;
-import io.github.habatoo.handlers.GlobalExceptionHandler;
+import io.github.habatoo.dto.response.CartItemDto;
+import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.servicies.BuyService;
 import io.github.habatoo.servicies.CartService;
-import io.github.habatoo.servicies.OrderService;
-import org.junit.jupiter.api.*;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.reactive.server.WebTestClient;
+import reactor.core.publisher.Mono;
 
-import java.time.LocalDateTime;
-import java.util.Collections;
+import java.math.BigDecimal;
 import java.util.List;
 
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 /**
- * <h2>Тесты для BuyController c максимальным кешированием MockMvc</h2>
+ * <h2>Тесты для BuyController c максимальным кешированием WebFluxTest</h2>
  *
  * <p>
- * Класс покрывает unit-тесты основных методов контроллера BuyController с использованием Standalone MockMvc.
- * MockMvc и тестовые данные инициализируются единожды в @BeforeAll для максимальной производительности.
- * Каждый тест проверяет корректность эндпоинтов, обработку ошибок и возврат ожидаемых ответов.
+ * Класс покрывает unit-тесты основных методов контроллера BuyController с использованием WebFluxTest.
  * Тесты полностью изолированы от Spring-контекста — мокируется только сервисный слой CommentService.
  * </p>
  */
+@WebFluxTest(BuyController.class)
+@ContextConfiguration(classes = BuyController.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@DisplayName("Тесты unit уровня методов контроллера BuyController с использованием Cached MockMvc.")
+@DisplayName("Тесты BuyController с использованием WebTestClient")
 class BuyControllerCashedTest {
 
-    private MockMvc mockMvc;
-    private OrderService orderService;
+    @Autowired
+    private WebTestClient webTestClient;
+
+    @MockitoBean
     private BuyService buyService;
+
+    @MockitoBean
     private CartService cartService;
 
-    @BeforeAll
-    void setUpAll() {
-        orderService = mock(OrderService.class);
-        buyService = mock(BuyService.class);
-        cartService = mock(CartService.class);
-        BuyController buyController = new BuyController(orderService, buyService, cartService);
-        mockMvc = MockMvcBuilders.standaloneSetup(buyController)
-                .setControllerAdvice(new GlobalExceptionHandler())
-                .build();
-    }
-
-    @BeforeEach
-    void setUp() {
-        reset(orderService);
-        reset(buyService);
-        reset(cartService);
-    }
-
     /**
-     * Тест успешной покупки: редирект на последнюю покупку пользователя
+     * Тест успешной покупки: редирект на созданный заказ
      */
     @Test
-    @DisplayName("POST \"/buy\" - должен вернуть редирект на последний заказ с флагом newOrder")
-    void buySuccessTest() throws Exception {
-        CartDto cartDto = mock(CartDto.class);
-        when(cartDto.id()).thenReturn(42L);
-        when(cartService.getItemsInTheCart()).thenReturn(cartDto);
+    @DisplayName("POST /buy — успешная покупка, редирект на созданный заказ")
+    void buySuccessTest() {
+        CartDto cart = new CartDto(
+                1L,
+                List.of(
+                        new CartItemDto(
+                                new ItemDto(
+                                        15L,
+                                        "title",
+                                        "desc",
+                                        "img/path",
+                                        BigDecimal.TEN,
+                                        1
+                                ),
+                                1,
+                                BigDecimal.TEN
+                        )
+                ),
+                BigDecimal.TEN
+        );
 
-        OrderDto orderDto = mock(OrderDto.class);
-        when(orderDto.id()).thenReturn(111L);
-        when(orderDto.dateTime()).thenReturn(LocalDateTime.now());
-        List<OrderDto> orders = List.of(orderDto);
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cart));
+        when(buyService.buy(1L)).thenReturn(Mono.just(111L));
 
-        when(orderService.getOrders()).thenReturn(orders);
+        webTestClient.post()
+                .uri("/buy")
+                .exchange()
+                .expectStatus().is3xxRedirection()
+                .expectHeader()
+                .valueEquals(HttpHeaders.LOCATION, "/orders/111?newOrder=true");
 
-        mockMvc.perform(post("/buy"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(view().name("redirect:/orders/111?newOrder=true"));
-
-        verify(buyService).buy(42L);
-        verify(orderService, atLeastOnce()).getOrders();
-        verify(cartService, atLeastOnce()).getItemsInTheCart();
-    }
-
-    /**
-     * Тест для случая, когда заказов нет — редирект на базовый адрес
-     */
-    @Test
-    @DisplayName("POST \"/buy\" - если нет заказов должен вернуть базовый редирект")
-    void buyNoOrderTest() throws Exception {
-        CartDto cartDto = mock(CartDto.class);
-        when(cartDto.id()).thenReturn(1L);
-        when(cartService.getItemsInTheCart()).thenReturn(cartDto);
-        when(orderService.getOrders()).thenReturn(Collections.emptyList());
-
-        mockMvc.perform(post("/buy"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(view().name("redirect:/orders/"));
-
-        verify(buyService).buy(1L);
-        verify(orderService).getOrders();
         verify(cartService).getItemsInTheCart();
+        verify(buyService).buy(1L);
+    }
+
+    /**
+     * Тест, когда корзина есть, но заказ не создается (пустой Mono) — редирект на /orders/
+     */
+    @Test
+    @DisplayName("POST /buy — корзина есть, но заказ не создается, редирект на /orders/")
+    void buyNoOrderTest() {
+        CartDto cart = new CartDto(
+                5L,
+                List.of(),
+                BigDecimal.ZERO
+        );
+
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cart));
+        when(buyService.buy(5L)).thenReturn(Mono.empty());
+
+        webTestClient.post()
+                .uri("/buy")
+                .exchange()
+                .expectStatus().is3xxRedirection()
+                .expectHeader()
+                .valueEquals(HttpHeaders.LOCATION, "/orders/");
+
+        verify(cartService).getItemsInTheCart();
+        verify(buyService).buy(5L);
+    }
+
+    /**
+     * Тест, когда корзина пуста — редирект на /orders/
+     */
+    @Test
+    @DisplayName("POST /buy — корзина пуста, редирект на /orders/")
+    void buyEmptyCartTest() {
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.empty());
+
+        webTestClient.post()
+                .uri("/buy")
+                .exchange()
+                .expectStatus().is3xxRedirection()
+                .expectHeader()
+                .valueEquals(HttpHeaders.LOCATION, "/orders/");
+
+        verify(cartService).getItemsInTheCart();
+        verifyNoInteractions(buyService);
     }
 }

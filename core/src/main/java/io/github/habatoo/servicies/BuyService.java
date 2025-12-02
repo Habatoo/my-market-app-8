@@ -1,5 +1,7 @@
 package io.github.habatoo.servicies;
 
+import reactor.core.publisher.Mono;
+
 /**
  * Интерфейс для осуществления покупки.
  * Предоставляет бизнес-логику для совершения покупки.
@@ -13,5 +15,5 @@ public interface BuyService {
      *
      * @param id идентификатор заказа
      */
-    void buy(Long id);
+    Mono<Long> buy(Long id);
 }

@@ -1,19 +1,22 @@
 package io.github.habatoo.handlers;
 
-import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataAccessResourceFailureException;
-import org.springframework.http.HttpHeaders;
 import org.springframework.ui.Model;
-import org.springframework.web.servlet.NoHandlerFoundException;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.NoSuchElementException;
+
 import static org.mockito.Mockito.verify;
 
 /**
@@ -25,9 +28,6 @@ class GlobalExceptionHandlerTest {
 
     @Mock
     private Model model;
-
-    @Mock
-    private HttpServletResponse response;
 
     private GlobalExceptionHandler handler;
 
@@ -45,11 +45,33 @@ class GlobalExceptionHandlerTest {
     void testHandleBadRequest() {
         IllegalArgumentException ex = new IllegalArgumentException("Невалидный параметр");
 
-        String viewName = handler.handleBadRequest(ex, model, response);
+        Mono<String> viewName = handler.handleBadRequest(ex, model);
 
-        assertEquals("error/400", viewName);
+        StepVerifier.create(viewName)
+                .expectNext("error/400")
+                .verifyComplete();
+
         verify(model).addAttribute("error", "Ошибка в параметрах запроса: Невалидный параметр");
         verify(model).addAttribute("status", 400);
+    }
+
+    /**
+     * Тест обработки NoHandlerFoundException (ошибка 404).
+     * Проверяет, что возвращается страница ошибки 404 с нужными атрибутами.
+     */
+    @Test
+    @DisplayName("Перехват NoHandlerFoundException — страница 404")
+    void testHandleNotFound() {
+        NoSuchElementException ex = new NoSuchElementException("GET not found");
+
+        Mono<String> viewName = handler.handleNotFound(ex, model);
+
+        StepVerifier.create(viewName)
+                .expectNext("error/404")
+                .verifyComplete();
+
+        verify(model).addAttribute("error", "Страница не найдена или удалена");
+        verify(model).addAttribute("status", 404);
     }
 
     /**
@@ -60,27 +82,14 @@ class GlobalExceptionHandlerTest {
     @DisplayName("Перехват DataAccessException — страница ошибки базы данных")
     void testHandleDatabaseError() {
         DataAccessException ex = new DataAccessResourceFailureException("БД недоступна");
-        String viewName = handler.handleDatabaseError(ex, model, response);
+        Mono<String> viewName = handler.handleDatabaseError(ex, model);
 
-        assertEquals("error/db", viewName);
+        StepVerifier.create(viewName)
+                .expectNext("error/db")
+                .verifyComplete();
+
         verify(model).addAttribute("error", "Ошибка базы данных (БД): БД недоступна");
         verify(model).addAttribute("status", 500);
-    }
-
-    /**
-     * Тест обработки NoHandlerFoundException (ошибка 404).
-     * Проверяет, что возвращается страница ошибки 404 с нужными атрибутами.
-     */
-    @Test
-    @DisplayName("Перехват NoHandlerFoundException — страница 404")
-    void testHandleNotFound() {
-        NoHandlerFoundException ex = new NoHandlerFoundException("GET", "/notfound", new HttpHeaders());
-
-        String viewName = handler.handleNotFound(ex, model, response);
-
-        assertEquals("error/404", viewName);
-        verify(model).addAttribute("error", "Страница не найдена или удалена");
-        verify(model).addAttribute("status", 404);
     }
 
     /**
@@ -89,16 +98,23 @@ class GlobalExceptionHandlerTest {
      * - в модель добавляется сообщение "Корзина не найдена" и статус 500
      * - имя view — "error/500"
      */
-    @Test
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"Корзина отсутствует", "", " "})
     @DisplayName("Перехват IllegalStateException — страница error/500 и статус 500")
-    void testHandleIllegalStateException() {
-        IllegalStateException ex = new IllegalStateException("Корзина отсутствует");
+    void testHandleIllegalStateException(String message) {
+        IllegalStateException ex = new IllegalStateException(message);
 
-        String viewName = handler.handleIllegalStateException(ex, model, response);
+        Mono<String> viewName = handler.handleIllegalStateException(ex, model);
 
-        assertEquals("error/500", viewName);
-        verify(response).setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-        verify(model).addAttribute("error", "Корзина не найдена");
+        StepVerifier.create(viewName)
+                .expectNext("error/500")
+                .verifyComplete();
+
+        verify(model).addAttribute("error", message == null
+                || message.isBlank()
+                ? "Внутренняя ошибка сервера"
+                : message);
         verify(model).addAttribute("status", 500);
     }
 
@@ -111,9 +127,12 @@ class GlobalExceptionHandlerTest {
     void testHandleGenericException() {
         Exception ex = new Exception("Критическая ошибка");
 
-        String viewName = handler.handleGenericException(ex, model, response);
+        Mono<String> viewName = handler.handleGenericException(ex, model);
 
-        assertEquals("error/500", viewName);
+        StepVerifier.create(viewName)
+                .expectNext("error/500")
+                .verifyComplete();
+
         verify(model).addAttribute("error", "Внутренняя ошибка сервера");
         verify(model).addAttribute("status", 500);
     }

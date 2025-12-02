@@ -16,12 +16,12 @@ repositories {
 
 dependencyManagement {
     imports {
-        mavenBom "org.springframework.boot:spring-boot-dependencies:3.5.6"
+        mavenBom "org.springframework.boot:spring-boot-dependencies:3.5.8"
     }
 }
 
 dependencies {
-    implementation platform('org.springframework.boot:spring-boot-dependencies:3.5.7')
+    implementation platform('org.springframework.boot:spring-boot-dependencies:3.5.8')
     implementation platform(project(':bom'))
     implementation project(':core')
     implementation project(':api')

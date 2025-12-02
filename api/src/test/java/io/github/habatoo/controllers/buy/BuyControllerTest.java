@@ -2,21 +2,17 @@ package io.github.habatoo.controllers.buy;
 
 import io.github.habatoo.controllers.BuyController;
 import io.github.habatoo.dto.response.CartDto;
-import io.github.habatoo.dto.response.OrderDto;
 import io.github.habatoo.servicies.BuyService;
 import io.github.habatoo.servicies.CartService;
-import io.github.habatoo.servicies.OrderService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
-import java.time.LocalDateTime;
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 /**
@@ -24,11 +20,8 @@ import static org.mockito.Mockito.*;
  * Проверяет обработку сценариев успешной покупки (создаётся новый заказ) и покупки без заказов.
  */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("Тесты для BuyController")
+@DisplayName("Юнит-тесты для BuyController")
 class BuyControllerTest {
-
-    @Mock
-    private OrderService orderService;
 
     @Mock
     private CartService cartService;
@@ -40,44 +33,82 @@ class BuyControllerTest {
     private BuyController buyController;
 
     /**
-     * Тест кейс: успешное оформление покупки — должен произойти редирект на последний заказ с флагом newOrder.
+     * Тест: успешная покупка с возвратом редиректа на созданный заказ
      */
     @Test
-    @DisplayName("Успешная покупка — редирект на новый заказ с флагом newOrder")
-    void testBuyWithNewOrderTest() {
-        CartDto cart = CartDto.builder().id(1L).build();
-        OrderDto order1 = OrderDto.builder().id(10L).dateTime(LocalDateTime.now().minusMinutes(5)).build();
-        OrderDto order2 = OrderDto.builder().id(11L).dateTime(LocalDateTime.now()).build();
+    @DisplayName("POST /buy — успешная покупка возвращает redirect на новый заказ")
+    void testBuySuccess() {
+        CartDto cartDto = new CartDto(1L, null, null);
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
 
-        when(cartService.getItemsInTheCart()).thenReturn(cart);
-        doNothing().when(buyService).buy(1L);
-        when(orderService.getOrders()).thenReturn(List.of(order1, order2));
+        when(buyService.buy(1L)).thenReturn(Mono.just(42L));
 
-        String result = buyController.buy();
+        Mono<String> result = buyController.buy();
 
-        assertEquals("redirect:/orders/11?newOrder=true", result);
-        verify(buyService).buy(1L);
-        verify(orderService).getOrders();
+        StepVerifier.create(result)
+                .expectNext("redirect:/orders/42?newOrder=true")
+                .verifyComplete();
+
         verify(cartService).getItemsInTheCart();
+        verify(buyService).buy(1L);
     }
 
     /**
-     * Тест кейс: корзина куплена, но новых заказов нет — должен произойти редирект на страницу заказов.
+     * Тест: корзина пуста — возвращаем просто редирект на список заказов
      */
     @Test
-    @DisplayName("Покупка без заказов — редирект на список заказов")
-    void testBuyNoOrdersTest() {
-        CartDto cart = CartDto.builder().id(2L).build();
+    @DisplayName("POST /buy — корзина пустая возвращает redirect на ORDERS")
+    void testBuyEmptyCart() {
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.empty());
 
-        when(cartService.getItemsInTheCart()).thenReturn(cart);
-        doNothing().when(buyService).buy(2L);
-        when(orderService.getOrders()).thenReturn(List.of());
+        Mono<String> result = buyController.buy();
 
-        String result = buyController.buy();
+        StepVerifier.create(result)
+                .expectNext("redirect:/orders/")
+                .verifyComplete();
 
-        assertEquals("redirect:/orders/", result);
-        verify(buyService).buy(2L);
-        verify(orderService).getOrders();
         verify(cartService).getItemsInTheCart();
+        verifyNoInteractions(buyService);
+    }
+
+    /**
+     * Тест: корзина есть, но buy возвращает пустой Mono — возвращаем просто редирект на ORDERS
+     */
+    @Test
+    @DisplayName("POST /buy — корзина есть, но покупка не создается, возвращаем редирект на ORDERS")
+    void testBuyNoOrderCreated() {
+        CartDto cartDto = new CartDto(1L, null, null);
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
+
+        when(buyService.buy(1L)).thenReturn(Mono.empty());
+
+        Mono<String> result = buyController.buy();
+
+        StepVerifier.create(result)
+                .expectNext("redirect:/orders/")
+                .verifyComplete();
+
+        verify(cartService).getItemsInTheCart();
+        verify(buyService).buy(1L);
+    }
+
+    /**
+     * Тест: buy бросает исключение — контроллер пробрасывает ошибку
+     */
+    @Test
+    @DisplayName("POST /buy — ошибка в сервисе покупки пробрасывается")
+    void testBuyError() {
+        CartDto cartDto = new CartDto(1L, null, null);
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
+        when(buyService.buy(1L)).thenReturn(Mono.error(new RuntimeException("Ошибка покупки")));
+
+        Mono<String> result = buyController.buy();
+
+        StepVerifier.create(result)
+                .expectErrorMessage("Ошибка покупки")
+                .verify();
+
+        verify(cartService).getItemsInTheCart();
+        verify(buyService).buy(1L);
     }
 }
