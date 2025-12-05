@@ -3,6 +3,7 @@ plugins {
     id 'jacoco'
     id 'java-library'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.openapi.generator' version '7.12.0'
 }
 
 jacoco {
@@ -15,17 +16,23 @@ dependencyManagement {
     }
 }
 
+repositories { mavenCentral() }
+
 dependencies {
     implementation platform(project(':bom'))
-    implementation project(':payment:core')
+
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
 
     api 'org.springframework.boot:spring-boot-autoconfigure'
-    implementation 'org.springframework.boot:spring-boot-starter'
     annotationProcessor 'org.springframework.boot:spring-boot-autoconfigure-processor'
-}
 
-jar {
-    enabled = true
+    implementation "org.springframework.boot:spring-boot-starter-webflux"
+    implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui'
+    implementation 'jakarta.validation:jakarta.validation-api'
+    implementation 'jakarta.annotation:jakarta.annotation-api'
+    implementation 'org.openapitools:jackson-databind-nullable'
+    implementation 'jakarta.servlet:jakarta.servlet-api'
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -33,6 +40,30 @@ tasks.withType(JavaCompile).configureEach {
     options.compilerArgs.add('-parameters')
 }
 
-test {
-    useJUnitPlatform()
+test { useJUnitPlatform() }
+
+openApiGenerate {
+    generatorName = "spring"
+    library = "spring-boot"
+    inputSpec = "${projectDir}/src/main/resources/openapi.yaml"
+    outputDir = "${buildDir}/generated-sources/openapi"
+    apiPackage = "io.github.habatoo.payment.api"
+    modelPackage = "io.github.habatoo.payment.model"
+    invokerPackage = "io.github.habatoo.payment.invoker"
+    validateSpec = false
+    configOptions = [
+            reactive                 : "true",
+            interfaceOnly            : "false",
+            dateLibrary              : "java8",
+            useBeanValidation        : "true",
+            generateSpringApplication: "false",
+            useJakartaEe             : "true"
+    ]
+}
+
+sourceSets.main.java.srcDirs += "$buildDir/generated-sources/openapi/src/main/java"
+tasks.compileJava.dependsOn tasks.openApiGenerate
+
+tasks.named("compileJava") {
+    dependsOn("openApiGenerate")
 }

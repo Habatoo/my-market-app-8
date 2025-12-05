@@ -32,6 +32,10 @@ dependencies {
 
         api 'jakarta.servlet:jakarta.servlet-api:6.0.0'
         api 'jakarta.annotation:jakarta.annotation-api:2.1.1'
+        api 'jakarta.validation:jakarta.validation-api:3.0.2'
+
+        api 'org.springdoc:springdoc-openapi-starter-webflux-ui:2.5.0'
+        api 'org.openapitools:jackson-databind-nullable:0.2.4'
 
         api 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
         api 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.17.2'
