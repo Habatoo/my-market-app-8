@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: payment
+server:
+  port: 8081
+
+application:
+  balance: 1000.00
