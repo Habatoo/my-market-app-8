@@ -10,6 +10,5 @@ include 'store:start'
 include 'store:integrations'
 
 include 'payment:api'
-include 'payment:core'
 include 'payment:start'
 include 'payment:integrations'

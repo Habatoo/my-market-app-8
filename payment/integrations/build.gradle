@@ -12,7 +12,6 @@ dependencies {
     annotationProcessor platform(project(":bom"))
     implementation platform('org.springframework.boot:spring-boot-dependencies:3.5.8')
 
-    implementation project(':payment:core')
     implementation project(':payment:api')
     implementation project(':payment:start')
 }

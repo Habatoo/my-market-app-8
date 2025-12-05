@@ -23,7 +23,6 @@ dependencyManagement {
 dependencies {
     implementation platform('org.springframework.boot:spring-boot-dependencies:3.5.8')
     implementation platform(project(':bom'))
-    implementation project(':payment:core')
     implementation project(':payment:api')
 }
 

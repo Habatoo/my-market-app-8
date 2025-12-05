@@ -24,7 +24,6 @@ dependencies {
     jacocoAggregation project(":store:start")
 
     jacocoAggregation project(":payment:api")
-    jacocoAggregation project(":payment:core")
     jacocoAggregation project(":payment:start")
 
     implementation 'commons-io:commons-io'
