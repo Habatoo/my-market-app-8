@@ -33,6 +33,11 @@ dependencies {
     implementation 'jakarta.annotation:jakarta.annotation-api'
     implementation 'org.openapitools:jackson-databind-nullable'
     implementation 'jakarta.servlet:jakarta.servlet-api'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'io.projectreactor:reactor-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.withType(JavaCompile).configureEach {
