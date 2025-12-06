@@ -26,6 +26,9 @@ dependencies {
     implementation "org.springframework.boot:spring-boot-starter-webflux"
     implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui'
     implementation 'org.openapitools:jackson-databind-nullable'
+    implementation 'org.hibernate.validator:hibernate-validator'
+    implementation 'org.glassfish.expressly:expressly'
+
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -50,7 +53,7 @@ openApiGenerate {
     validateSpec = false
     configOptions = [
             reactive                 : "true",
-            interfaceOnly            : "false",
+            interfaceOnly            : "true",
             dateLibrary              : "java8",
             useBeanValidation        : "true",
             generateSpringApplication: "false",

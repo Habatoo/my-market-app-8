@@ -6,6 +6,7 @@ import io.github.habatoo.payment.model.PaymentResponse;
 import io.github.habatoo.services.BalanceService;
 import io.github.habatoo.services.PaymentsService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -15,6 +16,7 @@ import reactor.core.publisher.Mono;
  * Предоставляет операции выполнения реактивного платежного действия.
  * </p>
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaymentsServiceImpl implements PaymentsService {
@@ -36,13 +38,16 @@ public class PaymentsServiceImpl implements PaymentsService {
     public Mono<PaymentResponse> pay(Mono<PaymentRequest> paymentRequest) {
         return paymentRequest.flatMap(req ->
                 balanceService.getBalance().flatMap(current -> {
+                    var amount = req.getAmount();
 
-                    if (current.compareTo(req.getAmount()) < 0) {
+                    if (current.compareTo(amount) < 0) {
+                        log.info("Недостаточно средств для оплаты {} < {}", current, amount.toString());
                         return Mono.just(new PaymentResponse()
                                 .status(PaymentResponse.StatusEnum.FAILED));
                     }
 
-                    return balanceService.decrease(req.getAmount())
+                    log.info("Оплата прошла на сумму {}", amount.toString());
+                    return balanceService.decrease(amount)
                             .thenReturn(new PaymentResponse()
                                     .status(PaymentResponse.StatusEnum.SUCCESS));
                 })

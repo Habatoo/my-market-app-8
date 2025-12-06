@@ -24,6 +24,12 @@ dependencies {
     implementation platform('org.springframework.boot:spring-boot-dependencies:3.5.8')
     implementation platform(project(':bom'))
     implementation project(':payment:api')
+
+    implementation 'org.springframework.boot:spring-boot-starter'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
 }
 
 jar {

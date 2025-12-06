@@ -6,6 +6,7 @@ import io.github.habatoo.payment.model.PaymentRequest;
 import io.github.habatoo.payment.model.PaymentResponse;
 import io.github.habatoo.services.PaymentsService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,7 @@ import reactor.core.publisher.Mono;
  * на основе автоматически сгенерированного интерфейса PaymentsApi.
  * </p>
  */
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 public class PaymentsController implements PaymentsApi {
@@ -45,6 +47,7 @@ public class PaymentsController implements PaymentsApi {
             ServerWebExchange exchange
     ) {
         return paymentRequest
+                .doOnNext(p -> log.info("POST /payments/payment — платеж, request={}", p))
                 .flatMap(p -> paymentsService.pay(Mono.just(p)))
                 .map(body -> ResponseEntity
                         .status(HttpStatus.CREATED)
@@ -67,6 +70,8 @@ public class PaymentsController implements PaymentsApi {
     @Override
     public Mono<ResponseEntity<BalanceResponse>> getWalletBalance(
             ServerWebExchange exchange) {
+        log.info("GET /payments/balance — запрос баланса");
+
         return paymentsService
                 .getBalance()
                 .map(body -> ResponseEntity.status(HttpStatus.CREATED).body(body));

@@ -25,6 +25,8 @@ dependencies {
         api 'org.springframework:spring-webmvc:6.2.11'
 
         api 'org.hibernate.orm:hibernate-core:7.1.6.Final'
+        api 'org.hibernate.validator:hibernate-validator:9.1.0.Final'
+        api 'org.glassfish.expressly:expressly:6.0.0'
 
         api 'org.mapstruct:mapstruct:1.6.3'
         api 'org.mapstruct:mapstruct-processor:1.6.3'

@@ -5,4 +5,4 @@ server:
   port: 8081
 
 application:
-  balance: 1000.00
+  balance: 300.00
