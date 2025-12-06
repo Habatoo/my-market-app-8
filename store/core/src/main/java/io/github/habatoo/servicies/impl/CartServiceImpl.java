@@ -12,6 +12,9 @@ import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.CartRepository;
 import io.github.habatoo.repositories.ItemRepository;
 import io.github.habatoo.servicies.CartService;
+import io.github.habatoo.store.payment.api.PaymentsApi;
+import io.github.habatoo.store.payment.model.BalanceResponse;
+import io.github.habatoo.store.payment.model.PaymentRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,6 +37,7 @@ public class CartServiceImpl implements CartService {
     private final CartItemRepository cartItemRepository;
     private final ItemRepository itemRepository;
     private final ItemMapper itemMapper;
+    private final PaymentsApi paymentsApi;
 
     /**
      * {@inheritDoc}
@@ -107,6 +111,11 @@ public class CartServiceImpl implements CartService {
                                             .map(i -> i.price().multiply(BigDecimal.valueOf(i.count())))
                                             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+                                    PaymentRequest paymentRequest = new PaymentRequest();
+                                    paymentRequest.amount(total);
+
+                                    var t = canProcessPayment(paymentRequest);
+
                                     return CartDto.builder()
                                             .id(cart.getId())
                                             .items(itemsDto)
@@ -124,6 +133,21 @@ public class CartServiceImpl implements CartService {
     public Mono<CartDto> changeNumberOfItemsFromCart(ChangeNumberOfItemsRequestDto request) {
         return changeNumberOfItems(request)
                 .then(getItemsInTheCart());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Mono<Boolean> canProcessPayment(PaymentRequest request) {
+        return paymentsApi.getWalletBalance()
+                .map(BalanceResponse::getBalance)
+                .map(balance -> balance.compareTo(request.getAmount()) >= 0)
+                .onErrorMap(ex -> {
+                    log.info("Ошибка при чтении баланса {}", ex.getMessage());
+
+                    return ex;
+                });
     }
 
     private Mono<Cart> getCurrentCart() {

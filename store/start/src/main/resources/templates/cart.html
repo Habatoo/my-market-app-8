@@ -48,10 +48,18 @@
     </div>
     <div class="row p-2">
         <div class="col">
-            <form action="/buy" method="post" th:if="${cart.items != null and !cart.items.isEmpty()}">
+            <form action="/buy" method="post"
+                  th:if="${cart.items != null and !cart.items.isEmpty()}">
                 <div class="hstack gap-3">
-                    <h2 th:text="'Итого: '+${cart.total}+' руб.'"/>
-                    <button class="btn btn-warning ms-auto">Купить</button>
+                    <h2 th:text="'Итого: ' + ${cart.total} + ' руб.'"></h2>
+                    <div class="ms-auto">
+                        <button class="btn btn-warning"
+                                th:if="${canPay}"> Купить
+                        </button>
+                        <span class="text-danger"
+                              th:if="${!canPay}"> Недостаточно средств
+                        </span>
+                    </div>
                 </div>
             </form>
         </div>
