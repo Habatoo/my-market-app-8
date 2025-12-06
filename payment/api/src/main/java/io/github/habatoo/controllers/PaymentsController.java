@@ -7,6 +7,7 @@ import io.github.habatoo.payment.model.PaymentResponse;
 import io.github.habatoo.services.PaymentsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ServerWebExchange;
@@ -32,17 +33,24 @@ public class PaymentsController implements PaymentsApi {
      * При недостатке средств возвращается статус FAILED.
      * </p>
      *
+     * @param contentType    MIME-тип тела запроса.
      * @param paymentRequest входящие данные платежа (сумма списания)
      * @param exchange       информация о текущем HTTP-запросе
      * @return реактивный publisher с HTTP-ответом и результатом выполнения платежа
      */
     @Override
     public Mono<ResponseEntity<PaymentResponse>> createPayment(
+            String contentType,
             Mono<PaymentRequest> paymentRequest,
-            ServerWebExchange exchange) {
-        return paymentsService
-                .pay(paymentRequest)
-                .map(body -> ResponseEntity.status(HttpStatus.CREATED).body(body));
+            ServerWebExchange exchange
+    ) {
+        return paymentRequest
+                .flatMap(p -> paymentsService.pay(Mono.just(p)))
+                .map(body -> ResponseEntity
+                        .status(HttpStatus.CREATED)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body)
+                );
     }
 
     /**

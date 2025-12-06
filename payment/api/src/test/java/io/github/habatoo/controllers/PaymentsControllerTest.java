@@ -28,6 +28,8 @@ import static org.mockito.Mockito.when;
 @DisplayName("Тест работы методов PaymentsController")
 class PaymentsControllerTest {
 
+    private final String CONTENT_TYPE = "application/json";
+
     @Mock
     private PaymentsService paymentsService;
 
@@ -49,7 +51,8 @@ class PaymentsControllerTest {
         when(paymentsService.pay(any(Mono.class)))
                 .thenReturn(Mono.just(response));
 
-        Mono<ResponseEntity<PaymentResponse>> result = paymentsController.createPayment(Mono.just(request), exchange);
+        Mono<ResponseEntity<PaymentResponse>> result = paymentsController.createPayment(
+                CONTENT_TYPE, Mono.just(request), exchange);
 
         StepVerifier.create(result)
                 .expectNextMatches(resp -> resp.getStatusCode() == HttpStatus.CREATED
@@ -69,7 +72,8 @@ class PaymentsControllerTest {
         when(paymentsService.pay(any(Mono.class)))
                 .thenReturn(Mono.just(response));
 
-        Mono<ResponseEntity<PaymentResponse>> result = paymentsController.createPayment(Mono.just(request), exchange);
+        Mono<ResponseEntity<PaymentResponse>> result = paymentsController.createPayment(
+                CONTENT_TYPE, Mono.just(request), exchange);
 
         StepVerifier.create(result)
                 .expectNextMatches(resp -> resp.getStatusCode() == HttpStatus.CREATED

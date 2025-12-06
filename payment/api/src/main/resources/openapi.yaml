@@ -18,6 +18,21 @@ paths:
       responses:
         '200':
           description: Баланс успешно получен
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                example: application/json
+            Cache-Control:
+              schema:
+                type: string
+                example: max-age=60
+              description: Данные актуальны не более минуты
+            ETag:
+              schema:
+                type: string
+                example: "W/\"abc-version-1\""
+              description: Текущая версия ресурса
           content:
             application/json:
               schema:
@@ -29,15 +44,35 @@ paths:
         - Payments
       summary: Создание платежа (списание средств)
       operationId: createPayment
+
+      parameters:
+        - name: Content-Type
+          in: header
+          required: true
+          schema:
+            type: string
+            enum: [application/json]
+
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/PaymentRequest'
+
       responses:
         '201':
           description: Платеж успешно создан
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                example: application/json
+            Location:
+              schema:
+                type: string
+                example: http://localhost:8081/payments/payment/123
+              description: Адрес созданного платежа
           content:
             application/json:
               schema:

@@ -3,13 +3,11 @@ package io.github.habatoo.services.impl;
 import io.github.habatoo.payment.model.BalanceResponse;
 import io.github.habatoo.payment.model.PaymentRequest;
 import io.github.habatoo.payment.model.PaymentResponse;
+import io.github.habatoo.services.BalanceService;
 import io.github.habatoo.services.PaymentsService;
-import org.springframework.beans.factory.annotation.Value;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
-
-import java.math.BigDecimal;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Сервис управления платежами.
@@ -18,41 +16,36 @@ import java.util.concurrent.atomic.AtomicReference;
  * </p>
  */
 @Service
+@RequiredArgsConstructor
 public class PaymentsServiceImpl implements PaymentsService {
 
-    private final AtomicReference<BigDecimal> balance;
-
-    public PaymentsServiceImpl(@Value("${application.balance}") BigDecimal initialBalance) {
-        this.balance = new AtomicReference<>(initialBalance);
-    }
+    private final BalanceService balanceService;
 
     /**
      * {@inheritDoc}
      */
     @Override
     public Mono<BalanceResponse> getBalance() {
-        return Mono.fromSupplier(() -> {
-            var response = new BalanceResponse();
-            response.setBalance(balance.get());
-
-            return response;
-        });
+        return balanceService.getBalance()
+                .map(b -> new BalanceResponse().balance(b));
     }
 
     /**
      * {@inheritDoc}
      */
-    @Override
     public Mono<PaymentResponse> pay(Mono<PaymentRequest> paymentRequest) {
-        return paymentRequest.map(req -> {
-            var current = balance.get();
-            if (current.compareTo(req.getAmount()) < 0) {
-                return new PaymentResponse().status(PaymentResponse.StatusEnum.FAILED);
-            }
+        return paymentRequest.flatMap(req ->
+                balanceService.getBalance().flatMap(current -> {
 
-            balance.updateAndGet(b -> b.subtract(req.getAmount()));
+                    if (current.compareTo(req.getAmount()) < 0) {
+                        return Mono.just(new PaymentResponse()
+                                .status(PaymentResponse.StatusEnum.FAILED));
+                    }
 
-            return new PaymentResponse().status(PaymentResponse.StatusEnum.SUCCESS);
-        });
+                    return balanceService.decrease(req.getAmount())
+                            .thenReturn(new PaymentResponse()
+                                    .status(PaymentResponse.StatusEnum.SUCCESS));
+                })
+        );
     }
 }

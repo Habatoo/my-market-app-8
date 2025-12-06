@@ -43,7 +43,10 @@ testCodeCoverageReport {
                 fileTree(dir: dir, exclude: [
                         '**/entity/**',
                         '**/dto/**',
-                        '**/mappers/**'
+                        '**/mappers/**',
+                        'io/github/habatoo/store/payment/api/**',
+                        'io/github/habatoo/store/payment/model/**',
+                        'io/github/habatoo/store/payment/invoker/**'
                 ])
             })
     )
