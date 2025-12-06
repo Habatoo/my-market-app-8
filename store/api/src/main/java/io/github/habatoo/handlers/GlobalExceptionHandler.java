@@ -1,5 +1,6 @@
 package io.github.habatoo.handlers;
 
+import io.github.habatoo.exceptions.PaymentException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.ui.Model;
@@ -56,6 +57,20 @@ public class GlobalExceptionHandler {
         model.addAttribute("status", 500);
 
         return Mono.just("error/db");
+    }
+
+    /**
+     * Обработка ошибок взаимодействия с сервисом платежей.
+     * Возвращает страницу bad-request (400).
+     */
+    @ExceptionHandler(PaymentException.class)
+    public Mono<String> handlePaymentError(Exception e, Model model) {
+        log.error("Ошибка базы данных [{}]: {}", e.getClass().getSimpleName(), e.getMessage(), e);
+
+        model.addAttribute("error", "Ошибка обращения к сервису платежей");
+        model.addAttribute("status", 400);
+
+        return Mono.just("error/400");
     }
 
     /**
