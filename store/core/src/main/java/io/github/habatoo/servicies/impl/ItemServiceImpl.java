@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -21,6 +22,7 @@ import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -36,61 +38,42 @@ import java.util.stream.IntStream;
 @RequiredArgsConstructor
 public class ItemServiceImpl implements ItemService {
 
+    private static final Duration TTL = Duration.ofMinutes(10);
+
     private final ItemRepository repository;
     private final CartItemRepository cartItemRepository;
     private final CartService cartService;
     private final ItemMapper mapper;
+    private final ReactiveRedisTemplate<String, Object> reactiveRedisTemplate;
 
     /**
      * {@inheritDoc}
      */
     @Override
     public Mono<ItemsDtoResponse> getItems(GetItemsRequestDto request) {
-        Mono<CartDto> cartMono = cartService.getItemsInTheCart();
 
         int pageSize = request.getPageSize() != null ? request.getPageSize() : 5;
         int pageNumber = request.getPageNumber() != null ? request.getPageNumber() : 1;
-
+        String search = request.getSearch() == null ? "" : request.getSearch().trim();
         Sort sort = getSort(request);
-        Pageable pageable = PageRequest.of(pageNumber - 1, pageSize, sort);
 
-        String rawSearch = request.getSearch();
-        boolean noSearch = rawSearch == null || rawSearch.trim().isEmpty();
+        String cacheKey = buildItemsCacheKey(search, pageSize, pageNumber, sort);
 
-        Flux<Item> itemsFlux;
-        Mono<Long> totalMono;
+        Mono<ItemsDtoResponse> cached = reactiveRedisTemplate.opsForValue()
+                .get(cacheKey)
+                .cast(ItemsDtoResponse.class)
+                .doOnNext(val -> log.info("CACHE HIT: {}", cacheKey));
 
-        if (noSearch) {
-            itemsFlux = repository.findAllBy(pageable);
-            totalMono = repository.count();
-        } else {
-            String search = rawSearch.trim();
+        Mono<ItemsDtoResponse> compute = loadItemsFromDb(search, pageSize, pageNumber, sort);
 
-            itemsFlux = repository.findByTitleContainingOrDescriptionContaining(search, search, pageable);
-            totalMono = repository.countByTitleContainingOrDescriptionContaining(search, search);
-        }
-
-        return itemsFlux
-                .collectList()
-                .map(mapper::toDto)
-                .zipWith(cartMono)
-                .flatMap(tuple -> {
-                    List<ItemDto> itemDtos = tuple.getT1();
-                    CartDto cart = tuple.getT2();
-
-                    return loadCountsForItems(itemDtos, cart.id())
-                            .map(countMap -> Tuples.of(itemDtos, cart, countMap));
-                })
-                .zipWith(totalMono)
-                .map(tuple -> {
-                    List<ItemDto> items = tuple.getT1().getT1();
-                    CartDto cart = tuple.getT1().getT2();
-                    Map<Long, Integer> countMap = tuple.getT1().getT3();
-                    Long total = tuple.getT2();
-
-                    return getItemsDtoResponseFunction(pageSize, pageNumber, countMap)
-                            .apply(Tuples.of(Tuples.of(items, cart), total));
-                });
+        return cached
+                .switchIfEmpty(
+                        compute.flatMap(result ->
+                                reactiveRedisTemplate.opsForValue()
+                                        .set(cacheKey, result, TTL)
+                                        .thenReturn(result)
+                        )
+                );
     }
 
     /**
@@ -179,9 +162,72 @@ public class ItemServiceImpl implements ItemService {
     }
 
     private Mono<ItemDto> loadItemDto(Long id) {
-        return repository.findById(id)
-                .switchIfEmpty(Mono.error(new IllegalStateException("Товар с id=" + id + " не найден")))
-                .map(mapper::toDto);
+        String cacheKey = "item:" + id;
+
+        return reactiveRedisTemplate.opsForValue()
+                .get(cacheKey)
+                .cast(ItemDto.class)
+                .doOnNext(val -> log.info("CACHE HIT: {}", cacheKey))
+                .switchIfEmpty(
+                        repository.findById(id)
+                                .switchIfEmpty(Mono.error(new IllegalStateException("Товар с id=" + id + " не найден")))
+                                .flatMap(item -> {
+                                    ItemDto dto = mapper.toDto(item);
+                                    return reactiveRedisTemplate.opsForValue()
+                                            .set(cacheKey, dto, TTL)
+                                            .thenReturn(dto);
+                                })
+                );
+    }
+
+    private Mono<ItemsDtoResponse> loadItemsFromDb(
+            String search,
+            int pageSize,
+            int pageNumber,
+            Sort sort) {
+        Pageable pageable = PageRequest.of(pageNumber - 1, pageSize, sort);
+
+        Mono<CartDto> cartMono = cartService.getItemsInTheCart();
+
+        boolean noSearch = search.isEmpty();
+
+        Flux<Item> itemsFlux = noSearch
+                ? repository.findAllBy(pageable)
+                : repository.findByTitleContainingOrDescriptionContaining(search, search, pageable);
+
+        Mono<Long> totalMono = noSearch
+                ? repository.count()
+                : repository.countByTitleContainingOrDescriptionContaining(search, search);
+
+        return itemsFlux
+                .collectList()
+                .map(mapper::toDto)
+                .zipWith(cartMono)
+                .flatMap(tuple -> {
+                    List<ItemDto> itemDtos = tuple.getT1();
+                    CartDto cart = tuple.getT2();
+                    return loadCountsForItems(itemDtos, cart.id())
+                            .map(countMap -> Tuples.of(itemDtos, cart, countMap));
+                })
+                .zipWith(totalMono)
+                .map(tuple -> {
+                    List<ItemDto> items = tuple.getT1().getT1();
+                    CartDto cart = tuple.getT1().getT2();
+                    Map<Long, Integer> countMap = tuple.getT1().getT3();
+                    Long total = tuple.getT2();
+
+                    return getItemsDtoResponseFunction(pageSize, pageNumber, countMap)
+                            .apply(Tuples.of(Tuples.of(items, cart), total));
+                });
+    }
+
+    private String buildItemsCacheKey(
+            String search,
+            int pageSize,
+            int pageNumber,
+            Sort sort
+    ) {
+        return "items:" + search + ":" + pageSize + ":" + pageNumber + ":" + sort.toString();
     }
 
     private ItemsDtoResponse buildItemsResponse(

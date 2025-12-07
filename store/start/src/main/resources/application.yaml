@@ -13,6 +13,14 @@ spring:
       allowed-headers: "*"
       allow-credentials: true
       max-age: 3600
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: 10s
+
+application:
+  redis-ttl-minutes: 1
 
 server:
   port: ${SPRING_DATASOURCE_SERVER_PORT:8080}

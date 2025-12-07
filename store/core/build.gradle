@@ -46,6 +46,7 @@ dependencies {
     implementation 'jakarta.validation:jakarta.validation-api'
     implementation 'jakarta.annotation:jakarta.annotation-api'
     implementation 'org.openapitools:jackson-databind-nullable'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
 
     runtimeOnly 'org.postgresql:r2dbc-postgresql'
     runtimeOnly 'org.postgresql:postgresql'

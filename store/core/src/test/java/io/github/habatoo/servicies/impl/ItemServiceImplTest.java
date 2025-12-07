@@ -13,6 +13,7 @@ import io.github.habatoo.mappers.ItemMapper;
 import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.ItemRepository;
 import io.github.habatoo.servicies.CartService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +28,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.core.ReactiveValueOperations;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -57,8 +60,21 @@ class ItemServiceImplTest {
     private CartService cartService;
     @Mock
     private ItemMapper mapper;
+    @Mock
+    private ReactiveRedisTemplate<String, Object> reactiveRedisTemplate;
+    @Mock
+    private ReactiveValueOperations<String, Object> valueOperations;
     @InjectMocks
     private ItemServiceImpl service;
+
+    @BeforeEach
+    void setupRedisMocks() {
+        when(reactiveRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(anyString()))
+                .thenReturn(Mono.empty());
+        when(valueOperations.set(anyString(), any(), any()))
+                .thenReturn(Mono.just(true));
+    }
 
     /**
      * Тест поиска/сортировки/пагинации витрины.
