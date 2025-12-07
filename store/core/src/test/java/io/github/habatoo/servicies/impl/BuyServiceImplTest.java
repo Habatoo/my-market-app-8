@@ -4,7 +4,7 @@ import io.github.habatoo.entity.Cart;
 import io.github.habatoo.entity.CartItem;
 import io.github.habatoo.entity.Order;
 import io.github.habatoo.entity.OrderItem;
-import io.github.habatoo.exceptions.PaymentException;
+import io.github.habatoo.exceptions.InsufficientFundsException;
 import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.CartRepository;
 import io.github.habatoo.repositories.OrderItemRepository;
@@ -280,7 +280,7 @@ class BuyServiceImplTest {
                 .thenReturn(Mono.just(new PaymentResponse().status(PaymentResponse.StatusEnum.FAILED)));
 
         StepVerifier.create(buyService.buy(cartId))
-                .expectError(PaymentException.InsufficientFunds.class)
+                .expectError(InsufficientFundsException.class)
                 .verify();
 
         verify(orderRepository, never()).save(any());

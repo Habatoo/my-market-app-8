@@ -47,6 +47,7 @@ class CartControllerTest {
     void showCartTest() {
         Mono<CartDto> cart = Mono.just(new CartDto(1L, List.of(), BigDecimal.ONE));
         when(cartService.getItemsInTheCart()).thenReturn(cart);
+        when(cartService.canProcessPayment(any())).thenReturn(Mono.just(Boolean.TRUE));
 
         Mono<String> result = cartController.showCart(model);
 
@@ -78,6 +79,7 @@ class CartControllerTest {
 
         when(cartService.changeNumberOfItemsFromCart(any(ChangeNumberOfItemsRequestDto.class)))
                 .thenReturn(cart);
+        when(cartService.canProcessPayment(any())).thenReturn(Mono.just(Boolean.TRUE));
 
         Mono<String> result = cartController.changeNumberOfItemsFromCart(req, model);
 

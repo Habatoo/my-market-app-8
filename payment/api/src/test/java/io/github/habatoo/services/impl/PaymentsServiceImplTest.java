@@ -14,6 +14,7 @@ import reactor.test.StepVerifier;
 
 import java.math.BigDecimal;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
@@ -134,6 +135,31 @@ class PaymentsServiceImplTest {
 
         verify(balanceService, times(2)).getBalance();
         verify(balanceService, times(1)).decrease(BigDecimal.valueOf(20));
+    }
+
+    @Test
+    @DisplayName("Сброс баланса на корректное значение")
+    void testResetBalance() {
+        balanceService = new InMemoryBalanceService(BigDecimal.valueOf(500));
+
+        StepVerifier.create(balanceService.reset(BigDecimal.valueOf(1000)))
+                .verifyComplete();
+
+        StepVerifier.create(balanceService.getBalance())
+                .assertNext(balance -> assertThat(balance).isEqualByComparingTo(BigDecimal.valueOf(1000)))
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("Сброс баланса на отрицательное значение — ошибка")
+    void testResetNegativeBalance() {
+        balanceService = new InMemoryBalanceService(BigDecimal.valueOf(500));
+
+        StepVerifier.create(balanceService.reset(BigDecimal.valueOf(-100)))
+                .expectErrorMatches(throwable ->
+                        throwable instanceof IllegalArgumentException &&
+                                throwable.getMessage().equals("Баланс не может быть отрицательным"))
+                .verify();
     }
 }
 

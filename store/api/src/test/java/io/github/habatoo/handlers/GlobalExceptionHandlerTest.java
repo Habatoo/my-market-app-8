@@ -1,5 +1,6 @@
 package io.github.habatoo.handlers;
 
+import io.github.habatoo.exceptions.InsufficientFundsException;
 import io.github.habatoo.exceptions.PaymentException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -100,7 +101,7 @@ class GlobalExceptionHandlerTest {
     @Test
     @DisplayName("Перехват PaymentException — страница 400")
     void testHandlePaymentError() {
-        PaymentException ex = new PaymentException.InsufficientFunds();
+        InsufficientFundsException ex = new InsufficientFundsException();
 
         Mono<String> viewName = handler.handlePaymentError(ex, model);
 

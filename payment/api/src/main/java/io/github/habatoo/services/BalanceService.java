@@ -26,4 +26,13 @@ public interface BalanceService {
      * @return реактивный publisher, содержащий новое значение баланса после уменьшения
      */
     Mono<BigDecimal> decrease(BigDecimal amount);
+
+
+    /**
+     * Устанавливает текущий баланс на указанную сумму.
+     *
+     * @param amount сумма баланса
+     * @return реактивный publisher, содержащий пустое значение
+     */
+    Mono<Void> reset(BigDecimal amount);
 }

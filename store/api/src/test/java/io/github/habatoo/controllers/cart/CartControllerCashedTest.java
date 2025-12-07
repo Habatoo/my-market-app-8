@@ -65,6 +65,7 @@ public class CartControllerCashedTest {
                 BigDecimal.valueOf(20)
         );
         when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
+        when(cartService.canProcessPayment(any())).thenReturn(Mono.just(Boolean.TRUE));
 
         webTestClient.get()
                 .uri("/cart/items")
@@ -98,6 +99,7 @@ public class CartControllerCashedTest {
                 BigDecimal.valueOf(30)
         );
         when(cartService.changeNumberOfItemsFromCart(any())).thenReturn(Mono.just(updated));
+        when(cartService.canProcessPayment(any())).thenReturn(Mono.just(Boolean.TRUE));
 
         webTestClient.post()
                 .uri("/cart/items")
