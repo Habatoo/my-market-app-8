@@ -2,8 +2,11 @@ package io.github.habatoo.utils;
 
 import io.github.habatoo.entity.*;
 import io.github.habatoo.repositories.*;
+import io.github.habatoo.store.payment.api.PaymentsApi;
 import org.junit.jupiter.api.BeforeEach;
+import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -29,6 +32,9 @@ public abstract class BaseTest {
 
     @Autowired
     protected ItemRepository itemRepository;
+
+    @MockitoBean
+    protected PaymentsApi paymentsApi;
 
     @BeforeEach
     void cleanUp() {

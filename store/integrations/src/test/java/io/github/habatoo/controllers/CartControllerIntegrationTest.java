@@ -50,6 +50,7 @@ class CartControllerIntegrationTest {
     void showCartSuccessTest() {
         CartDto cartDto = mock(CartDto.class);
         when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
+        when(cartService.canProcessPayment(any())).thenReturn(Mono.just(Boolean.TRUE));
 
         webTestClient.get()
                 .uri("/cart/items")
@@ -99,6 +100,7 @@ class CartControllerIntegrationTest {
         when(cartService.getItemsInTheCart()).thenReturn(
                 Mono.just(cartDto)
         );
+        when(cartService.canProcessPayment(any())).thenReturn(Mono.just(Boolean.TRUE));
 
         webTestClient.post()
                 .uri(uriBuilder -> uriBuilder
@@ -131,6 +133,7 @@ class CartControllerIntegrationTest {
         when(cartService.getItemsInTheCart()).thenReturn(
                 Mono.just(cartDto)
         );
+        when(cartService.canProcessPayment(any())).thenReturn(Mono.just(Boolean.TRUE));
 
         webTestClient.post()
                 .uri(uriBuilder -> uriBuilder

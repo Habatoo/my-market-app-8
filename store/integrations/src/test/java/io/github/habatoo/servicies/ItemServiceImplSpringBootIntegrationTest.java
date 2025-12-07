@@ -3,6 +3,7 @@ package io.github.habatoo.servicies;
 import io.github.habatoo.entity.Cart;
 import io.github.habatoo.entity.Item;
 import io.github.habatoo.entity.Order;
+import io.github.habatoo.store.payment.model.PaymentResponse;
 import io.github.habatoo.utils.BaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,12 +11,16 @@ import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.data.r2dbc.AutoConfigureDataR2dbc;
 import org.springframework.boot.test.context.SpringBootTest;
+import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @AutoConfigureDataR2dbc
@@ -33,6 +38,9 @@ class ItemServiceImplSpringBootIntegrationTest extends BaseTest {
 
         Item item1 = createAndSaveItem("Item1", BigDecimal.valueOf(10)).block();
         Item item2 = createAndSaveItem("Item2", BigDecimal.valueOf(20)).block();
+        when(paymentsApi.createPayment(anyString(), any()))
+                .thenReturn(Mono.just(new PaymentResponse().status(PaymentResponse.StatusEnum.SUCCESS)
+                ));
 
         createAndSaveCartItem(cart, item1, 2, item1.getPrice()).block();
         createAndSaveCartItem(cart, item2, 3, item2.getPrice()).block();
