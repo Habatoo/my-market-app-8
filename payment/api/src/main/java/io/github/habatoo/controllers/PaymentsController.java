@@ -47,8 +47,8 @@ public class PaymentsController implements PaymentsApi {
             ServerWebExchange exchange
     ) {
         return paymentRequest
-                .doOnNext(p -> log.info("POST /payments/payment — платеж, request={}", p))
-                .flatMap(p -> paymentsService.pay(Mono.just(p)))
+                .doOnNext(p -> log.info("POST /payments/payment — request={}", p))
+                .transform(paymentsService::pay)
                 .map(body -> ResponseEntity
                         .status(HttpStatus.CREATED)
                         .contentType(MediaType.APPLICATION_JSON)

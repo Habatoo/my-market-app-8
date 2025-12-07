@@ -109,12 +109,7 @@ public class CartServiceImpl implements CartService {
                                 .map(itemsDto -> {
                                     BigDecimal total = itemsDto.stream()
                                             .map(i -> i.price().multiply(BigDecimal.valueOf(i.count())))
-                                            .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-                                    PaymentRequest paymentRequest = new PaymentRequest();
-                                    paymentRequest.amount(total);
-
-                                    var t = canProcessPayment(paymentRequest);
+                                            .reduce(BigDecimal.ZERO, BigDecimal::add);;
 
                                     return CartDto.builder()
                                             .id(cart.getId())

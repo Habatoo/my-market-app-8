@@ -2,7 +2,8 @@ package io.github.habatoo.servicies.impl;
 
 import io.github.habatoo.entity.Order;
 import io.github.habatoo.entity.OrderItem;
-import io.github.habatoo.exceptions.PaymentException;
+import io.github.habatoo.exceptions.InsufficientFundsException;
+import io.github.habatoo.exceptions.PaymentServiceUnavailableException;
 import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.CartRepository;
 import io.github.habatoo.repositories.OrderItemRepository;
@@ -92,25 +93,25 @@ public class BuyServiceImpl implements BuyService {
     }
 
     /**
-     * Пытается провести оплату через PaymentsApi.
+     * Обращение к PaymentsApi и генерация бизнес-исключений.
      *
      * @param request запрос на списание средств
-     * @return Mono с подтверждением успешной оплаты или ошибкой
      */
     private Mono<String> processPayment(PaymentRequest request) {
-        return paymentsApi.createPayment("contentType", request)
+        return paymentsApi.createPayment("application/json", request)
                 .flatMap(response -> {
                     if (response.getStatus() == PaymentResponse.StatusEnum.SUCCESS) {
                         return Mono.just("SUCCESS");
                     }
-
-                    return Mono.error(new PaymentException.InsufficientFunds());
+                    return Mono.error(new InsufficientFundsException());
                 })
-                .onErrorMap(ex -> {
-                    if (ex instanceof PaymentException.InsufficientFunds) {
-                        return ex;
+                .onErrorResume(ex -> {
+                    if (ex instanceof InsufficientFundsException) {
+                        return Mono.error(ex);
                     }
-                    return new PaymentException.PaymentServiceUnavailable();
+
+                    log.error("Ошибка обращения к сервису платежей: {}", ex.getMessage(), ex);
+                    return Mono.error(new PaymentServiceUnavailableException());
                 });
     }
 }

@@ -36,5 +36,16 @@ public class InMemoryBalanceService implements BalanceService {
     public Mono<BigDecimal> decrease(BigDecimal amount) {
         return Mono.fromCallable(() -> balance.updateAndGet(b -> b.subtract(amount)));
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Mono<Void> reset(BigDecimal amount) {
+        if (amount.compareTo(BigDecimal.ZERO) < 0) {
+            return Mono.error(new IllegalArgumentException("Баланс не может быть отрицательным"));
+        }
+        return Mono.fromRunnable(() -> balance.set(amount));
+    }
 }
 

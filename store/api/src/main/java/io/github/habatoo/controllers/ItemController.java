@@ -4,6 +4,7 @@ import io.github.habatoo.dto.request.ChangeNumberOfItemsRequestDto;
 import io.github.habatoo.dto.request.GetItemsRequestDto;
 import io.github.habatoo.servicies.CartService;
 import io.github.habatoo.servicies.ItemService;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
@@ -102,7 +103,7 @@ public class ItemController {
      */
     @GetMapping("/{id}")
     public Mono<String> getItemPage(
-            @PathVariable("id") Long id,
+            @PathVariable("id") @Positive Long id,
             Model model) {
         log.info("GET /items/{} — запрос страницы товара", id);
 
@@ -125,7 +126,7 @@ public class ItemController {
      */
     @PostMapping("/{id}")
     public Mono<String> changeItemFromItemPage(
-            @PathVariable("id") Long id,
+            @PathVariable("id") @Positive Long id,
             @ModelAttribute ChangeNumberOfItemsRequestDto req,
             Model model) {
         log.info("POST /items/{} — изменение количества товара с карточки, request={}", id, req);

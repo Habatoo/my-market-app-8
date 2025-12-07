@@ -1,6 +1,7 @@
 package io.github.habatoo.controllers;
 
 import io.github.habatoo.servicies.OrderService;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
@@ -54,7 +55,7 @@ public class OrderController {
      */
     @GetMapping("/{id}")
     public Mono<String> getOrder(
-            @PathVariable Long id,
+            @PathVariable @Positive Long id,
             @RequestParam(value = "newOrder", required = false, defaultValue = "false") boolean newOrder,
             Model model) {
         log.info("GET /orders/{} — просмотр заказа, newOrder={}", id, newOrder);
