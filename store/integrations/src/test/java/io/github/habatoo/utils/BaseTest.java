@@ -3,8 +3,8 @@ package io.github.habatoo.utils;
 import io.github.habatoo.entity.*;
 import io.github.habatoo.repositories.*;
 import io.github.habatoo.store.payment.api.PaymentsApi;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -38,16 +38,16 @@ public abstract class BaseTest {
 
     @BeforeEach
     void cleanUp() {
-        orderItemRepository.deleteAll()
-                .then(orderRepository.deleteAll())
-                .then(cartItemRepository.deleteAll())
-                .then(cartRepository.deleteAll())
-                .then(itemRepository.deleteAll())
-                .block();
+        cleanDataBase();
+    }
+
+    @AfterEach
+    void tearDown() {
+        cleanDataBase();
     }
 
     @Container
-    public static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
+    public static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17-alpine")
             .withDatabaseName("testdb")
             .withUsername("test")
             .withPassword("test");
@@ -90,25 +90,6 @@ public abstract class BaseTest {
     }
 
     /**
-     * Создаёт новый экземпляр Item без сохранения.
-     */
-    protected Item createItem(String title, String description, String imgPath, BigDecimal price) {
-        Item item = new Item();
-        item.setTitle(title);
-        item.setDescription(description);
-        item.setImgPath(imgPath);
-        item.setPrice(price);
-        return item;
-    }
-
-    /**
-     * Сохраняет товар и возвращает Mono<Item> с присвоенным id.
-     */
-    protected Mono<Item> saveItem(Item item) {
-        return itemRepository.save(item);
-    }
-
-    /**
      * Создание и сохранение Order с указанной суммой и датой.
      */
     protected Mono<Order> createAndSaveOrder(BigDecimal totalSum, LocalDateTime dateTime) {
@@ -130,16 +111,12 @@ public abstract class BaseTest {
         return orderItemRepository.save(orderItem);
     }
 
-    protected Cart createCart(BigDecimal total) {
-        Cart cart = new Cart();
-        cart.setTotal(total);
-        return cart;
-    }
-
-    protected Item createItem(String title, BigDecimal price) {
-        Item item = new Item();
-        item.setTitle(title);
-        item.setPrice(price);
-        return item;
+    private void cleanDataBase() {
+        orderItemRepository.deleteAll()
+                .then(orderRepository.deleteAll())
+                .then(cartItemRepository.deleteAll())
+                .then(cartRepository.deleteAll())
+                .then(itemRepository.deleteAll())
+                .block();
     }
 }
