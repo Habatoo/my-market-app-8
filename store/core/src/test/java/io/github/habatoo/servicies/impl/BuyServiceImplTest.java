@@ -314,6 +314,7 @@ class BuyServiceImplTest {
     }
 
     @Test
+    @DisplayName("buy() — PaymentServiceUnavailableException")
     void buyShouldFailWhenPaymentServiceUnavailableTest() {
         Cart cart = prepareCart();
         CartItem item = prepareItem();
