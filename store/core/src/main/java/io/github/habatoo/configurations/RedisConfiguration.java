@@ -1,43 +1,59 @@
 package io.github.habatoo.configurations;
 
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.github.habatoo.dto.response.ItemDto;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+
+import java.util.List;
 
 @Configuration
 public class RedisConfiguration {
 
     @Bean
-    public ReactiveRedisTemplate<String, Object> reactiveRedisTemplate(
-            ReactiveRedisConnectionFactory factory) {
+    public ReactiveRedisTemplate<String, ItemDto> itemRedisTemplate(
+            ReactiveRedisConnectionFactory factory,
+            ObjectMapper objectMapper) {
 
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.registerModule(new JavaTimeModule());
-        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        Jackson2JsonRedisSerializer<ItemDto> valueSerializer =
+                new Jackson2JsonRedisSerializer<>(objectMapper, ItemDto.class);
+        StringRedisSerializer keySerializer = new StringRedisSerializer();
 
-        mapper.activateDefaultTyping(
-                LaissezFaireSubTypeValidator.instance,
-                ObjectMapper.DefaultTyping.EVERYTHING,
-                JsonTypeInfo.As.PROPERTY
-        );
+        RedisSerializationContext<String, ItemDto> context = RedisSerializationContext.
+                <String, ItemDto>newSerializationContext(keySerializer)
+                .hashKey(keySerializer)
+                .hashValue(valueSerializer)
+                .key(keySerializer)
+                .value(RedisSerializationContext.SerializationPair.fromSerializer(valueSerializer))
+                .build();
 
-        GenericJackson2JsonRedisSerializer jsonSerializer =
-                new GenericJackson2JsonRedisSerializer(mapper);
+        return new ReactiveRedisTemplate<>(factory, context);
+    }
 
-        RedisSerializationContext<String, Object> context =
-                RedisSerializationContext.<String, Object>newSerializationContext(new StringRedisSerializer())
-                        .value(jsonSerializer)
-                        .hashValue(jsonSerializer)
-                        .build();
+    @Bean
+    public ReactiveRedisTemplate<String, List<ItemDto>> itemsListRedisTemplate(
+            ReactiveRedisConnectionFactory factory,
+            ObjectMapper objectMapper) {
+
+        Jackson2JsonRedisSerializer<List<ItemDto>> valueSerializer =
+                new Jackson2JsonRedisSerializer<>(
+                        objectMapper,
+                        objectMapper.getTypeFactory().constructCollectionType(List.class, ItemDto.class));
+
+        StringRedisSerializer keySerializer = new StringRedisSerializer();
+
+        RedisSerializationContext<String, List<ItemDto>> context = RedisSerializationContext
+                .<String, List<ItemDto>>newSerializationContext(keySerializer)
+                .hashKey(keySerializer)
+                .hashValue(valueSerializer)
+                .key(keySerializer)
+                .value(RedisSerializationContext.SerializationPair.fromSerializer(valueSerializer))
+                .build();
 
         return new ReactiveRedisTemplate<>(factory, context);
     }
