@@ -15,15 +15,15 @@ spring:
       max-age: 3600
   data:
     redis:
-      host: ${SPRING_DATA_REDIS_HOST:localhost}
-      port: ${SPRING_DATA_REDIS_PORT:6379}
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
       timeout: 10s
 
 application:
-  redis-ttl-minutes: 1
+  redis-ttl-minutes: ${SPRING_REDIS_TTL:1}
 
 server:
-  port: ${SPRING_DATASOURCE_SERVER_PORT:8080}
+  port: ${SPRING_DATASOURCE_STORE_PORT:8080}
 
 payment:
-  url: http://localhost:${SPRING_DATASOURCE_CLIENT_PORT:8081}
+  url: http://localhost:${SPRING_DATASOURCE_PAYMENT_PORT:8081}

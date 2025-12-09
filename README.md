@@ -23,12 +23,14 @@ my-market-app/
 │   ├── core/                 # Core блок с основной бизнес логикой - jar 
 │   ├── start/                # Application - @SpringBootApplication -jar
 │   │ └── db/changelog/       # Миграции Liquibase
-│   └── integrationtests/     # Локальные интеграции store (Postgres+Redis)
+│   ├── Dockerfile            # Конфигурация Docker для store
+│   └── integrations/         # Локальные интеграции store (Postgres+Redis)
 ├── payment/
 │   ├── api/                  # Контроллеры и конфигурация приложения - jar
 │   ├── core/                 # Core блок с основной бизнес логикой - jar 
 │   ├── start/                # Application - @SpringBootApplication -jar
-│   └── integrationtests/     # Локальные интеграции payment (Postgres)
+│   ├── Dockerfile            # Конфигурация Docker для payment
+│   └── integrations/         # Локальные интеграции payment
 ├── integration-tests/        # Cross-service ТЕСТЫ store + payment
 │   └── build.gradle
 ├── report/                   # Общий Jacoco coverage aggregator
@@ -36,7 +38,6 @@ my-market-app/
 ├── documentation/
 ├── env/
 ├── docker-compose.yml         # Главный файл оркестрации Docker сервисов
-├── Dockerfile
 ├── README.md
 └── settings.gradle
 ```
