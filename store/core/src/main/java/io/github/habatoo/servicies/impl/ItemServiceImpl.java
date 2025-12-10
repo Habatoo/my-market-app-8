@@ -9,19 +9,19 @@ import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.ItemRepository;
 import io.github.habatoo.servicies.CartService;
 import io.github.habatoo.servicies.ItemService;
+import io.github.habatoo.storages.RedisItemListStorage;
+import io.github.habatoo.storages.RedisItemStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuples;
 
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -36,14 +36,12 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class ItemServiceImpl implements ItemService {
 
-    private static final Duration TTL = Duration.ofMinutes(10);
-
     private final ItemRepository repository;
     private final CartItemRepository cartItemRepository;
     private final CartService cartService;
     private final ItemMapper mapper;
-    private final ReactiveRedisTemplate<String, ItemDto> itemRedisTemplate;
-    private final ReactiveRedisTemplate<String, List<ItemDto>> itemsListRedisTemplate;
+    private final RedisItemStorage redisItemStorage;
+    private final RedisItemListStorage redisItemListStorage;
 
     /**
      * {@inheritDoc}
@@ -57,10 +55,11 @@ public class ItemServiceImpl implements ItemService {
         String rawSearch = Optional.ofNullable(request.getSearch()).orElse("").trim();
         Sort sort = getSort(request);
 
-        String cacheKey = "items:list:" + rawSearch + ":" + pageSize + ":" + pageNumber + ":" + sort;
-
-        return itemsListRedisTemplate.opsForValue()
-                .get(cacheKey)
+        return redisItemListStorage.getItems(
+                        rawSearch,
+                        pageSize,
+                        pageNumber,
+                        sort)
                 .flatMap(cachedItems -> cartMono
                         .flatMap(cart -> loadCountsForItems(cachedItems, cart.id())
                                 .map(countMap -> buildItemsResponse(
@@ -70,8 +69,12 @@ public class ItemServiceImpl implements ItemService {
                 .switchIfEmpty(
                         loadItemsFromDb(rawSearch, pageSize, pageNumber, sort, cartMono)
                                 .doOnNext(response -> {
-                                    itemsListRedisTemplate.opsForValue()
-                                            .set(cacheKey, flattenItems(response.itemsRows()), TTL)
+                                    redisItemListStorage.saveItems(
+                                                    rawSearch,
+                                                    pageSize,
+                                                    pageNumber,
+                                                    sort,
+                                                    flattenItems(response.itemsRows()))
                                             .subscribe();
                                 })
                 );
@@ -82,16 +85,13 @@ public class ItemServiceImpl implements ItemService {
      */
     @Override
     public Mono<ItemDtoResponse> getItem(Long id) {
-        String cacheKey = "item:card:" + id;
-
-        Mono<ItemDto> itemMono = itemRedisTemplate.opsForValue()
-                .get(cacheKey)
+        Mono<ItemDto> itemMono = redisItemStorage.getItem(id)
                 .switchIfEmpty(
                         repository.findById(id)
-                                .switchIfEmpty(Mono.error(new IllegalStateException("Товар с id=" + id + " не найден")))
+                                .switchIfEmpty(Mono.error(
+                                        new IllegalStateException("Товар с id=" + id + " не найден")))
                                 .map(mapper::toDto)
-                                .flatMap(dto -> itemRedisTemplate.opsForValue()
-                                        .set(cacheKey, dto, TTL)
+                                .flatMap(dto -> redisItemStorage.saveItem(id, dto)
                                         .thenReturn(dto))
                 );
 
@@ -110,7 +110,8 @@ public class ItemServiceImpl implements ItemService {
         return cartService.changeNumberOfItems(request)
                 .switchIfEmpty(Mono.defer(() -> repository.findById(request.getId()).map(mapper::toDto)))
                 .zipWith(cartService.getItemsInTheCart())
-                .flatMap(tuple -> buildItemResponse(tuple.getT1(), tuple.getT2(), tuple.getT1().id()));
+                .flatMap(tuple -> buildItemResponse(
+                        tuple.getT1(), tuple.getT2(), tuple.getT1().id()));
     }
 
     private Mono<Map<Long, Integer>> loadCountsForItems(List<ItemDto> itemDtos, Long cartId) {
