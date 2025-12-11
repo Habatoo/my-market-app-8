@@ -23,16 +23,6 @@ paths:
               schema:
                 type: string
                 example: application/json
-            Cache-Control:
-              schema:
-                type: string
-                example: max-age=60
-              description: Данные актуальны не более минуты
-            ETag:
-              schema:
-                type: string
-                example: "W/\"abc-version-1\""
-              description: Текущая версия ресурса
           content:
             application/json:
               schema:

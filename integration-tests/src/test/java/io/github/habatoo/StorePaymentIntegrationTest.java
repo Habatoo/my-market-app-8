@@ -51,6 +51,7 @@ public class StorePaymentIntegrationTest {
         registry.add("spring.r2dbc.username", postgres::getUsername);
         registry.add("spring.r2dbc.password", postgres::getPassword);
         registry.add("payment.url", () -> "http://localhost:" + 8081);
+        registry.add("application.redis-ttl-minutes", () -> 1);
 
 
         String redisUrl = String.format("%s:%d", redis.getHost(), redis.getMappedPort(6379));
