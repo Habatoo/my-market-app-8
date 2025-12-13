@@ -47,7 +47,7 @@ class RedisItemStorageImplTest {
      * аналогичный приватному obtainKey.
      */
     private String key(long id) {
-        return RedisItemStorageImpl.CASH_KEY_PREFIX + id;
+        return RedisItemStorageImpl.CACHE_KEY_PREFIX + id;
     }
 
     @Nested

@@ -2,6 +2,7 @@ package io.github.habatoo.storages.impl;
 
 import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.storages.RedisItemStorage;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -20,10 +21,11 @@ import java.time.Duration;
  * <p>Все операции выполняются в реактивной парадигме (Project Reactor) и возвращают
  * реактивный тип {@code Mono}.</p>
  */
+@Slf4j
 @Component
 public class RedisItemStorageImpl implements RedisItemStorage {
 
-    public static String CASH_KEY_PREFIX = "item:card:";
+    public static String CACHE_KEY_PREFIX = "item:card:";
 
     private final Duration timeToLive;
 
@@ -42,7 +44,9 @@ public class RedisItemStorageImpl implements RedisItemStorage {
     @Override
     public Mono<ItemDto> getItem(Long id) {
         String key = obtainKey(id);
-        return itemRedisTemplate.opsForValue().get(key);
+
+        return itemRedisTemplate.opsForValue().get(key)
+                .doOnNext(value -> log.info("Чтение из кэша {}", value));
     }
 
     /**
@@ -51,11 +55,12 @@ public class RedisItemStorageImpl implements RedisItemStorage {
     @Override
     public Mono<Boolean> saveItem(Long id, ItemDto dto) {
         String key = obtainKey(id);
+        log.info("Сохранение значения в кэш {}", dto);
 
         return itemRedisTemplate.opsForValue().set(key, dto, timeToLive);
     }
 
     private String obtainKey(Long id) {
-        return String.format("%s%s", CASH_KEY_PREFIX, id);
+        return String.format("%s%s", CACHE_KEY_PREFIX, id);
     }
 }

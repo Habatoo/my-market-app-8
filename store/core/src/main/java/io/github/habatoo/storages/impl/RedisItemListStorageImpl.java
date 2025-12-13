@@ -2,6 +2,7 @@ package io.github.habatoo.storages.impl;
 
 import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.storages.RedisItemListStorage;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
@@ -23,10 +24,11 @@ import java.util.List;
  * <p>Все операции выполняются в реактивной парадигме (Project Reactor) и возвращают
  * соответствующие типы {@code Mono}.</p>
  */
+@Slf4j
 @Component
 public class RedisItemListStorageImpl implements RedisItemListStorage {
 
-    public static String CASH_KEY_PREFIX = "items:list:";
+    public static final String CACHE_KEY_PREFIX = "items:list:";
 
     private final Duration timeToLive;
 
@@ -53,7 +55,9 @@ public class RedisItemListStorageImpl implements RedisItemListStorage {
                 pageSize,
                 pageNumber,
                 sort);
-        return itemsListRedisTemplate.opsForValue().get(key);
+
+        return itemsListRedisTemplate.opsForValue().get(key)
+                .doOnNext(value -> log.info("Чтение из кэша {}", value));
     }
 
     /**
@@ -70,6 +74,7 @@ public class RedisItemListStorageImpl implements RedisItemListStorage {
                 pageSize,
                 pageNumber,
                 sort);
+        log.info("Сохранение значения в кэш {}", dtos);
 
         return itemsListRedisTemplate.opsForValue().set(key, dtos, timeToLive);
     }
@@ -80,6 +85,6 @@ public class RedisItemListStorageImpl implements RedisItemListStorage {
             int pageNumber,
             Sort sort) {
 
-        return String.format("%s%s:%s:%s:%s", CASH_KEY_PREFIX, rawSearch, pageSize, pageNumber, sort);
+        return String.format("%s%s:%s:%s:%s", CACHE_KEY_PREFIX, rawSearch, pageSize, pageNumber, sort);
     }
 }
