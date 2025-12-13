@@ -281,7 +281,8 @@ class BuyServiceImplTest {
 
         when(cartRepository.findById(cartId)).thenReturn(Mono.just(cart));
         when(cartItemRepository.findAllByCartId(cartId)).thenReturn(Flux.just(ci));
-
+        when(orderRepository.save(any(Order.class)))
+                .thenReturn(Mono.just(new Order()));
         when(paymentsApi.createPayment(anyString(), any()))
                 .thenReturn(Mono.just(new PaymentResponse().status(PaymentResponse.StatusEnum.FAILED)));
 
@@ -303,6 +304,8 @@ class BuyServiceImplTest {
 
         when(cartRepository.findById(CART_ID)).thenReturn(Mono.just(cart));
         when(cartItemRepository.findAllByCartId(CART_ID)).thenReturn(Flux.just(item));
+        when(orderRepository.save(any(Order.class)))
+                .thenReturn(Mono.just(new Order()));
         PaymentResponse failed = new PaymentResponse()
                 .status(PaymentResponse.StatusEnum.FAILED);
         when(paymentsApi.createPayment(anyString(), any(PaymentRequest.class)))
@@ -321,6 +324,12 @@ class BuyServiceImplTest {
 
         when(cartRepository.findById(CART_ID)).thenReturn(Mono.just(cart));
         when(cartItemRepository.findAllByCartId(CART_ID)).thenReturn(Flux.just(item));
+        when(orderRepository.save(any(Order.class)))
+                .thenReturn(Mono.just(new Order()));
+
+//        when(orderItemRepository.save(any(OrderItem.class)))
+//                .thenReturn(Mono.just(new OrderItem()));
+
         when(paymentsApi.createPayment(anyString(), any(PaymentRequest.class)))
                 .thenReturn(Mono.error(new RuntimeException("service down")));
 
