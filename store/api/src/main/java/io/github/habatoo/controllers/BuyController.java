@@ -36,8 +36,11 @@ public class BuyController {
                 .flatMap(cart ->
                         buyService.buy(cart.id())
                                 .map(orderId -> REDIRECT_ORDERS + orderId + "?newOrder=true")
-                                .defaultIfEmpty(REDIRECT_ORDERS)
                 )
+                .onErrorMap(ex -> {
+                    log.warn("Ошибка оформления заказа: {}", ex.getMessage());
+                    return ex;
+                })
                 .defaultIfEmpty(REDIRECT_ORDERS);
     }
 }

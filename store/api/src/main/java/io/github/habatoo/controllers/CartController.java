@@ -1,7 +1,9 @@
 package io.github.habatoo.controllers;
 
 import io.github.habatoo.dto.request.ChangeNumberOfItemsRequestDto;
+import io.github.habatoo.dto.response.CartDto;
 import io.github.habatoo.servicies.CartService;
+import io.github.habatoo.store.payment.model.PaymentRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
@@ -37,7 +39,7 @@ public class CartController {
         log.info("GET /cart/items — отображение корзины");
 
         return cartService.getItemsInTheCart()
-                .doOnNext(c -> model.addAttribute(CART, c))
+                .flatMap(cartDto -> processCartResult(model, cartDto))
                 .thenReturn(CART);
     }
 
@@ -56,7 +58,23 @@ public class CartController {
         log.info("POST /cart/items — изменение количества товара, request={}", req);
 
         return cartService.changeNumberOfItemsFromCart(req)
-                .doOnNext(cart -> model.addAttribute(CART, cart))
+                .flatMap(cartDto -> processCartResult(model, cartDto))
                 .thenReturn(CART);
+    }
+
+    /**
+     * Общая обработка результата получения корзины:
+     * 1. добавление данных корзины в модель
+     * 2. вызов сервиса платежей и установка флага canPay
+     */
+    private Mono<Void> processCartResult(Model model, CartDto cartDto) {
+        model.addAttribute(CART, cartDto);
+
+        PaymentRequest paymentRequest = new PaymentRequest();
+        paymentRequest.amount(cartDto.total());
+
+        return cartService.canProcessPayment(paymentRequest)
+                .doOnNext(canPay -> model.addAttribute("canPay", canPay))
+                .then();
     }
 }

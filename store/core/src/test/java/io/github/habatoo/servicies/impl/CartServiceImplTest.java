@@ -11,6 +11,9 @@ import io.github.habatoo.mappers.ItemMapper;
 import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.CartRepository;
 import io.github.habatoo.repositories.ItemRepository;
+import io.github.habatoo.store.payment.api.PaymentsApi;
+import io.github.habatoo.store.payment.model.BalanceResponse;
+import io.github.habatoo.store.payment.model.PaymentRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,6 +42,8 @@ class CartServiceImplTest {
     private ItemRepository itemRepository;
     @Mock
     private ItemMapper itemMapper;
+    @Mock
+    private PaymentsApi paymentsApi;
     @InjectMocks
     private CartServiceImpl service;
 
@@ -389,4 +394,66 @@ class CartServiceImplTest {
                 c.getTotal().compareTo(BigDecimal.valueOf(15)) == 0
         ));
     }
+
+    /**
+     * Имитирует ситуацию, когда баланс меньше суммы покупки.
+     */
+    @Test
+    @DisplayName("canProcessPayment → false, когда баланс < суммы")
+    void testCanProcessPaymentWhenBalanceNotEnoughReturnFalse() {
+        PaymentRequest req = new PaymentRequest()
+                .amount(BigDecimal.valueOf(300));
+
+        BalanceResponse balance = new BalanceResponse()
+                .balance(BigDecimal.valueOf(100));
+
+        when(paymentsApi.getWalletBalance())
+                .thenReturn(Mono.just(balance));
+
+        StepVerifier.create(service.canProcessPayment(req))
+                .expectNext(false)
+                .verifyComplete();
+    }
+
+    /**
+     * Имитирует ситуацию, когда от сервиса платежй приходит ошибка.
+     */
+    @Test
+    @DisplayName("canProcessPayment → ошибка пробрасывается в onErrorMap")
+    void testCanProcessPaymentWhenApiErrorThenExceptionPropagated() {
+        PaymentRequest req = new PaymentRequest()
+                .amount(BigDecimal.valueOf(100));
+
+        RuntimeException ex = new RuntimeException("wallet unavailable");
+
+        when(paymentsApi.getWalletBalance())
+                .thenReturn(Mono.error(ex));
+
+        StepVerifier.create(service.canProcessPayment(req))
+                .expectErrorMatches(t -> t instanceof RuntimeException &&
+                        t.getMessage().equals("wallet unavailable"))
+                .verify();
+    }
+
+    /**
+     * Имитирует ситуацию, когда баланс точно равен сумме покупки.
+     */
+    @Test
+    @DisplayName("canProcessPayment → true, когда баланс точно равен сумме (compareTo == 0)")
+    void canProcessPayment_whenBalanceEqualsAmount_returnTrue() {
+        PaymentRequest req = new PaymentRequest()
+                .amount(BigDecimal.valueOf(200));
+        BalanceResponse balance = new BalanceResponse()
+                .balance(BigDecimal.valueOf(200));
+
+        when(paymentsApi.getWalletBalance())
+                .thenReturn(Mono.just(balance));
+
+        StepVerifier.create(service.canProcessPayment(req))
+                .expectNext(true)
+                .verifyComplete();
+
+        verify(paymentsApi, times(1)).getWalletBalance();
+    }
+
 }

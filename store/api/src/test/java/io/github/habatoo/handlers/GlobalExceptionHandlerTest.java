@@ -1,5 +1,7 @@
 package io.github.habatoo.handlers;
 
+import io.github.habatoo.exceptions.InsufficientFundsException;
+import io.github.habatoo.exceptions.PaymentException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -90,6 +92,25 @@ class GlobalExceptionHandlerTest {
 
         verify(model).addAttribute("error", "Ошибка базы данных (БД): БД недоступна");
         verify(model).addAttribute("status", 500);
+    }
+
+    /**
+     * Тест обработки PaymentException (платежи).
+     * Проверяет передачу сообщения и кода ошибки в модель и возврат шаблона ошибки 400.
+     */
+    @Test
+    @DisplayName("Перехват PaymentException — страница 400")
+    void testHandlePaymentError() {
+        InsufficientFundsException ex = new InsufficientFundsException();
+
+        Mono<String> viewName = handler.handlePaymentError(ex, model);
+
+        StepVerifier.create(viewName)
+                .expectNext("error/400")
+                .verifyComplete();
+
+        verify(model).addAttribute("error", "Ошибка обращения к сервису платежей");
+        verify(model).addAttribute("status", 400);
     }
 
     /**

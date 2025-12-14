@@ -1,0 +1,95 @@
+openapi: 3.0.3
+info:
+  title: Payment API
+  version: 1.0.0
+  description: API сервиса платежей
+
+servers:
+  - url: http://localhost:8081
+    description: Локальный сервер разработки
+
+paths:
+  /payments/balance:
+    get:
+      tags:
+        - Payments
+      summary: Получение доступного баланса пользователя
+      operationId: getWalletBalance
+      responses:
+        '200':
+          description: Баланс успешно получен
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                example: application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceResponse'
+
+  /payments/payment:
+    post:
+      tags:
+        - Payments
+      summary: Создание платежа (списание средств)
+      operationId: createPayment
+
+      parameters:
+        - name: Content-Type
+          in: header
+          required: true
+          schema:
+            type: string
+            enum: [application/json]
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+
+      responses:
+        '201':
+          description: Платеж успешно создан
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                example: application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          description: Недостаточно средств
+        '503':
+          description: Внутренняя ошибка сервиса
+
+components:
+  schemas:
+    BalanceResponse:
+      type: object
+      properties:
+        balance:
+          type: number
+          format: bigdecimal
+          example: 1234.56
+
+    PaymentRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          format: bigdecimal
+          example: 100.50
+      required:
+        - amount
+
+    PaymentResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [SUCCESS, FAILED]

@@ -1,7 +1,7 @@
 plugins {
     id 'java'
     id 'jacoco'
-    id 'org.springframework.boot' version '3.5.7'
+    id 'org.springframework.boot' version '3.5.8'
     id 'io.spring.dependency-management' version '1.1.7'
 }
 
@@ -23,8 +23,13 @@ dependencyManagement {
 dependencies {
     implementation platform('org.springframework.boot:spring-boot-dependencies:3.5.8')
     implementation platform(project(':bom'))
-    implementation project(':payment:core')
     implementation project(':payment:api')
+
+    implementation 'org.springframework.boot:spring-boot-starter'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
 }
 
 jar {

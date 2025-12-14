@@ -3,6 +3,7 @@ plugins {
     id 'jacoco'
     id 'java-library'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.openapi.generator' version '7.12.0'
 }
 
 jacoco {
@@ -23,6 +24,7 @@ repositories {
 dependencies {
     implementation platform(project(':bom'))
     annotationProcessor platform(project(":bom"))
+    implementation project(':payment:api')
 
     api 'org.springframework.boot:spring-boot-autoconfigure'
     implementation 'org.springframework.boot:spring-boot-starter'
@@ -39,6 +41,12 @@ dependencies {
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui'
+    implementation 'jakarta.validation:jakarta.validation-api'
+    implementation 'jakarta.annotation:jakarta.annotation-api'
+    implementation 'org.openapitools:jackson-databind-nullable'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
 
     runtimeOnly 'org.postgresql:r2dbc-postgresql'
     runtimeOnly 'org.postgresql:postgresql'
@@ -66,3 +74,25 @@ tasks.withType(JavaCompile).configureEach {
 test {
     useJUnitPlatform()
 }
+
+openApiGenerate {
+    generatorName = "java"
+    library = "webclient"
+    inputSpec = "${rootDir}/payment/api/src/main/resources/openapi.yaml"
+    outputDir = "$buildDir/generated-sources/openapi"
+    apiPackage = "io.github.habatoo.store.payment.api"
+    modelPackage = "io.github.habatoo.store.payment.model"
+    invokerPackage = "io.github.habatoo.store.payment.invoker"
+    validateSpec = false
+    configOptions = [
+            dateLibrary        : "java8",
+            useSpringWebClient : "true",
+            interfaceOnly      : "false",
+            useJakartaEe       : "true",
+            openApiNullable    : "false"
+    ]
+}
+
+sourceSets.main.java.srcDirs += "$buildDir/generated-sources/openapi/src/main/java"
+
+tasks.compileJava.dependsOn(tasks.openApiGenerate)

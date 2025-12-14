@@ -4,31 +4,24 @@
    <br> Обеспечить наличие секртетов в `./env/.env` 
    <br> Содержимое файла `.env`
 ```text
-SPRING_DATASOURCE_URL=r2dbc:postgresql://shop-db:5432/shop_db
-SPRING_DATASOURCE_JDBC_URL=jdbc:postgresql:://shop-db:5432/shop_db
-SPRING_DATASOURCE_USERNAME=shop_admin
-SPRING_DATASOURCE_PASSWORD=shop_password
+SPRING_R2DBC_URL=r2dbc:postgresql://shop-db:5432/shop_db
+SPRING_DATASOURCE_JDBC_URL=jdbc:postgresql://shop-db:5432/shop_db
+SPRING_DB_USERNAME=shop_admin
+SPRING_DB_PASSWORD=shop_password
+
 POSTGRES_DB=shop_db
 POSTGRES_USER=shop_admin
 POSTGRES_PASSWORD=shop_password
+
+SPRING_REDIS_HOST=redis
+SPRING_REDIS_PORT=6379
+SPRING_REDIS_TTL=1
 ```
 
-2. **Собрать backend**
-- Через root:
-```bash
-./gradlew :start:bootJar
-```
-
-JAR-файл будет в ./start/build/libs
-— запускайте стандартно
-```bash
-java -jar start/build/libs/start-1.0-SNAPSHOT.jar
-```
-
-3. **Подготовить миграции Liquibase и настроить переменные БД**
+2. **Подготовить миграции Liquibase и настроить переменные БД**
    <br> Миграции должны лежать в `./start/src/main/resources/db/changelog/`
 
-4. **Собрать и запустить Docker-кластер**
+3. **Собрать и запустить Docker-кластер**
 
 После успешной сборки образов и запуск с помощью
 ```bash
@@ -54,7 +47,8 @@ docker compose up -d --build
 - Логирование
 Для просмотра логов:
 ```bash
-docker compose logs -f app
+docker compose logs -f payment
+docker compose logs -f store
 ```
 Это поможет убедиться, что сервисы запустились без ошибок.
 

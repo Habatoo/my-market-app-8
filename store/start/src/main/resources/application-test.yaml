@@ -1,13 +1,6 @@
 spring:
-  r2dbc:
-    url: r2dbc:postgresql://localhost:12345/test
-    user: test
-    password: test
   liquibase:
     enabled: true
-    url: jdbc:postgresql://localhost:5432/postgres
-    user: postgres
-    password: postgres
     change-log: classpath:db/changelog/db.changelog-master.yaml
     contexts: test
   web:

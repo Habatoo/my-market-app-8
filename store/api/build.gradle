@@ -29,6 +29,9 @@ dependencies {
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
     implementation 'io.projectreactor:reactor-core'
+    implementation 'jakarta.validation:jakarta.validation-api:3.1.1'
+    implementation 'org.hibernate.validator:hibernate-validator'
+    implementation 'org.glassfish.expressly:expressly'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'io.projectreactor:reactor-test'

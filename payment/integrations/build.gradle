@@ -12,9 +12,19 @@ dependencies {
     annotationProcessor platform(project(":bom"))
     implementation platform('org.springframework.boot:spring-boot-dependencies:3.5.8')
 
-    implementation project(':payment:core')
     implementation project(':payment:api')
     implementation project(':payment:start')
+
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'io.projectreactor:reactor-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 jar {

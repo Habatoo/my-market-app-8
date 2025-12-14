@@ -4,10 +4,15 @@ import io.github.habatoo.entity.Cart;
 import io.github.habatoo.entity.CartItem;
 import io.github.habatoo.entity.Order;
 import io.github.habatoo.entity.OrderItem;
+import io.github.habatoo.exceptions.InsufficientFundsException;
+import io.github.habatoo.exceptions.PaymentServiceUnavailableException;
 import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.CartRepository;
 import io.github.habatoo.repositories.OrderItemRepository;
 import io.github.habatoo.repositories.OrderRepository;
+import io.github.habatoo.store.payment.api.PaymentsApi;
+import io.github.habatoo.store.payment.model.PaymentRequest;
+import io.github.habatoo.store.payment.model.PaymentResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +38,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Тест загрузки BuyServiceImpl")
 class BuyServiceImplTest {
+    private final Long CART_ID = 10L;
 
     @Mock
     private OrderRepository orderRepository;
@@ -42,6 +48,8 @@ class BuyServiceImplTest {
     private CartRepository cartRepository;
     @Mock
     private CartItemRepository cartItemRepository;
+    @Mock
+    private PaymentsApi paymentsApi;
     @InjectMocks
     private BuyServiceImpl buyService;
 
@@ -84,6 +92,8 @@ class BuyServiceImplTest {
         when(orderRepository.save(any(Order.class))).thenReturn(Mono.just(savedOrder));
         when(orderItemRepository.save(any(OrderItem.class))).thenReturn(Mono.just(new OrderItem()));
         when(cartItemRepository.deleteAllByCartId(cartId)).thenReturn(Mono.empty());
+        when(paymentsApi.createPayment(anyString(), any()))
+                .thenReturn(Mono.just(new PaymentResponse().status(PaymentResponse.StatusEnum.SUCCESS)));
 
         Cart updatedCart = new Cart();
         updatedCart.setId(cartId);
@@ -131,6 +141,7 @@ class BuyServiceImplTest {
                 .verify();
 
         verify(orderRepository, never()).save(any());
+        verify(orderItemRepository, never()).save(any());
     }
 
     /**
@@ -177,6 +188,8 @@ class BuyServiceImplTest {
         when(cartRepository.findById(cartId)).thenReturn(Mono.just(cart));
         when(cartItemRepository.findAllByCartId(cartId)).thenReturn(Flux.just(item));
         when(orderRepository.save(any())).thenReturn(Mono.error(new RuntimeException("save error")));
+        when(paymentsApi.createPayment(anyString(), any()))
+                .thenReturn(Mono.just(new PaymentResponse().status(PaymentResponse.StatusEnum.SUCCESS)));
 
         StepVerifier.create(buyService.buy(cartId))
                 .expectErrorMatches(err -> err.getMessage().equals("save error"))
@@ -208,6 +221,8 @@ class BuyServiceImplTest {
         when(cartRepository.findById(cartId)).thenReturn(Mono.just(cart));
         when(cartItemRepository.findAllByCartId(cartId)).thenReturn(Flux.just(ci));
         when(orderRepository.save(any())).thenReturn(Mono.just(order));
+        when(paymentsApi.createPayment(anyString(), any()))
+                .thenReturn(Mono.just(new PaymentResponse().status(PaymentResponse.StatusEnum.SUCCESS)));
 
         StepVerifier.create(buyService.buy(cartId))
                 .expectError(RuntimeException.class)
@@ -241,9 +256,100 @@ class BuyServiceImplTest {
         when(orderItemRepository.save(any())).thenReturn(Mono.just(new OrderItem()));
         when(cartItemRepository.deleteAllByCartId(cartId)).thenReturn(Mono.empty());
         when(cartRepository.save(any())).thenReturn(Mono.error(new RuntimeException("cart save error")));
+        when(paymentsApi.createPayment(anyString(), any()))
+                .thenReturn(Mono.just(new PaymentResponse().status(PaymentResponse.StatusEnum.SUCCESS)));
 
         StepVerifier.create(buyService.buy(cartId))
                 .expectErrorMatches(err -> err.getMessage().equals("cart save error"))
                 .verify();
+    }
+
+    /**
+     * Ошибка — недостаточно средств при заказе.
+     */
+    @Test
+    @DisplayName("buy() — недостаточно средств")
+    void testInsufficientFunds() {
+        long cartId = 10;
+
+        Cart cart = new Cart();
+        cart.setId(cartId);
+
+        CartItem ci = new CartItem();
+        ci.setCartId(cartId);
+        ci.setCount(1);
+        ci.setPrice(BigDecimal.valueOf(100));
+
+        when(cartRepository.findById(cartId)).thenReturn(Mono.just(cart));
+        when(cartItemRepository.findAllByCartId(cartId)).thenReturn(Flux.just(ci));
+        when(paymentsApi.createPayment(anyString(), any()))
+                .thenReturn(Mono.just(new PaymentResponse().status(PaymentResponse.StatusEnum.FAILED)));
+
+        StepVerifier.create(buyService.buy(cartId))
+                .expectError(InsufficientFundsException.class)
+                .verify();
+
+        verify(orderRepository, never()).save(any());
+        verify(orderItemRepository, never()).save(any());
+    }
+
+    /**
+     * Ошибка — InsufficientFundsException при заказе.
+     */
+    @Test
+    @DisplayName("buy() — InsufficientFundsException")
+    void buyShouldFailWhenInsufficientFundsTest() {
+        Cart cart = prepareCart();
+        CartItem item = prepareItem();
+
+        when(cartRepository.findById(CART_ID)).thenReturn(Mono.just(cart));
+        when(cartItemRepository.findAllByCartId(CART_ID)).thenReturn(Flux.just(item));
+        PaymentResponse failed = new PaymentResponse()
+                .status(PaymentResponse.StatusEnum.FAILED);
+        when(paymentsApi.createPayment(anyString(), any(PaymentRequest.class)))
+                .thenReturn(Mono.just(failed));
+
+        StepVerifier.create(buyService.buy(CART_ID))
+                .expectErrorMatches(ex -> ex instanceof InsufficientFundsException)
+                .verify();
+
+        verify(orderRepository, never()).save(any());
+        verify(orderItemRepository, never()).save(any());
+
+    }
+
+    @Test
+    @DisplayName("buy() — PaymentServiceUnavailableException")
+    void buyShouldFailWhenPaymentServiceUnavailableTest() {
+        Cart cart = prepareCart();
+        CartItem item = prepareItem();
+
+        when(cartRepository.findById(CART_ID)).thenReturn(Mono.just(cart));
+        when(cartItemRepository.findAllByCartId(CART_ID)).thenReturn(Flux.just(item));
+        when(paymentsApi.createPayment(anyString(), any(PaymentRequest.class)))
+                .thenReturn(Mono.error(new RuntimeException("service down")));
+
+        StepVerifier.create(buyService.buy(CART_ID))
+                .expectErrorMatches(ex -> ex instanceof PaymentServiceUnavailableException)
+                .verify();
+
+        verify(orderRepository, never()).save(any());
+        verify(orderItemRepository, never()).save(any());
+    }
+
+    private Cart prepareCart() {
+        Cart cart = new Cart();
+        cart.setId(CART_ID);
+        cart.setTotal(BigDecimal.valueOf(200));
+        return cart;
+    }
+
+    private CartItem prepareItem() {
+        CartItem item = new CartItem();
+        item.setCartId(CART_ID);
+        item.setItemId(1L);
+        item.setCount(1);
+        item.setPrice(BigDecimal.valueOf(200));
+        return item;
     }
 }

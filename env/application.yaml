@@ -4,21 +4,27 @@ spring:
 
   r2dbc:
     url: ${SPRING_R2DBC_URL}
-    username: ${SPRING_DB_USERNAME}
-    password: ${SPRING_DB_PASSWORD}
+    username: ${SPRING_R2DBC_USERNAME}
+    password: ${SPRING_R2DBC_PASSWORD}
 
   datasource:
-    url: ${SPRING_DATASOURCE_JDBC_URL}
-    username: ${SPRING_DB_USERNAME}
-    password: ${SPRING_DB_PASSWORD}
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
 
   liquibase:
     enabled: true
-    url: ${SPRING_DATASOURCE_JDBC_URL}
-    user: ${SPRING_DB_USERNAME}
-    password: ${SPRING_DB_PASSWORD}
+    url: ${SPRING_LIQUIBASE_URL}
+    user: ${SPRING_LIQUIBASE_USER}
+    password: ${SPRING_LIQUIBASE_PASSWORD}
     change-log: classpath:db/changelog/db.changelog-master.yaml
     contexts: dev
+
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+      timeout: 10s
 
   web:
     cors:
@@ -30,3 +36,10 @@ spring:
       allowed-headers: "*"
       allow-credentials: true
       max-age: 3600
+
+application:
+  redis-ttl-minutes: ${SPRING_REDIS_TTL:1}
+  balance: 1000
+
+payment:
+  url: http://payment:8080

@@ -13,6 +13,9 @@ import io.github.habatoo.mappers.ItemMapper;
 import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.ItemRepository;
 import io.github.habatoo.servicies.CartService;
+import io.github.habatoo.storages.RedisItemListStorage;
+import io.github.habatoo.storages.RedisItemStorage;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,8 +60,24 @@ class ItemServiceImplTest {
     private CartService cartService;
     @Mock
     private ItemMapper mapper;
+    @Mock
+    private RedisItemStorage redisItemStorage;
+    @Mock
+    private RedisItemListStorage redisItemListStorage;
     @InjectMocks
     private ItemServiceImpl service;
+
+    @BeforeEach
+    void setUpMocks() {
+        when(redisItemStorage.getItem(anyLong()))
+                .thenReturn(Mono.empty());
+        when(redisItemStorage.saveItem(anyLong(), any()))
+                .thenReturn(Mono.just(true));
+        when(redisItemListStorage.getItems(anyString(), anyInt(), anyInt(), any()))
+                .thenReturn(Mono.empty());
+        when(redisItemListStorage.saveItems(anyString(), anyInt(), anyInt(), any(), anyList()))
+                .thenReturn(Mono.just(true));
+    }
 
     /**
      * Тест поиска/сортировки/пагинации витрины.
@@ -289,6 +308,71 @@ class ItemServiceImplTest {
         verify(repository).findById(23L);
         verify(mapper).toDto(item);
         verify(cartService).changeNumberOfItems(req);
+    }
+
+    @Test
+    @DisplayName("getItem — возвращает кэшированный товар без обращения к БД")
+    void getItemFromCache() {
+        ItemDto cached = new ItemDto(11L, "CACHED", null, "", BigDecimal.ONE, 0);
+        when(redisItemStorage.getItem(11L)).thenReturn(Mono.just(cached));
+        when(repository.findById(anyLong())).thenReturn(Mono.just(mock(Item.class)));
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.just(new CartDto(1L, List.of(), BigDecimal.ZERO)));
+        when(cartItemRepository.findCountByCartIdAndItemId(any(), eq(11L))).thenReturn(Mono.just(0));
+
+        ItemDtoResponse resp = service.getItem(11L).block();
+
+        assertNotNull(resp);
+        assertEquals(cached, resp.item());
+    }
+
+    @Test
+    @DisplayName("getItems — возвращает список из кэша без обращения к БД")
+    void getItemsFromCacheTest() {
+        GetItemsRequestDto req = GetItemsRequestDto.builder()
+                .pageNumber(1)
+                .pageSize(3)
+                .search("")
+                .build();
+
+        List<ItemDto> cached = List.of(
+                new ItemDto(1L, "A", "", "", BigDecimal.ONE, 0),
+                new ItemDto(2L, "B", "", "", BigDecimal.ONE, 0)
+        );
+
+        when(redisItemListStorage
+                .getItems("", 3, 1, org.springframework.data.domain.Sort.unsorted()))
+                .thenReturn(Mono.just(cached));
+        when(repository.findAllBy(any())).thenReturn(Flux.just(mock(Item.class)));
+        when(repository.count()).thenReturn(Mono.just(2L));
+        CartDto cart = new CartDto(1L, List.of(), BigDecimal.ZERO);
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cart));
+        when(cartItemRepository.findCountByCartIdAndItemId(any(), any())).thenReturn(Mono.just(0));
+
+        ItemsDtoResponse resp = service.getItems(req).block();
+
+        assertNotNull(resp);
+        assertEquals(2, resp.itemsRows().stream().flatMap(List::stream).filter(i -> i.id() != -1).count());
+    }
+
+    @Test
+    @DisplayName("getItem — при кэш промахе сохраняет товар в кэш")
+    void getItemSavesToCacheTest() {
+        when(redisItemStorage.getItem(50L)).thenReturn(Mono.empty());
+
+        Item item = new Item(50L, "X", null, "", BigDecimal.ONE, 0);
+        ItemDto dto = new ItemDto(50L, "X", null, "", BigDecimal.ONE, 0);
+
+        when(repository.findById(50L)).thenReturn(Mono.just(item));
+        when(mapper.toDto(item)).thenReturn(dto);
+        when(redisItemStorage.saveItem(50L, dto)).thenReturn(Mono.just(true));
+
+        when(cartService.getItemsInTheCart()).thenReturn(Mono.just(new CartDto(1L, List.of(), BigDecimal.ZERO)));
+        when(cartItemRepository.findCountByCartIdAndItemId(any(), eq(50L))).thenReturn(Mono.just(0));
+
+        ItemDtoResponse resp = service.getItem(50L).block();
+
+        assertNotNull(resp);
+        verify(redisItemStorage).saveItem(50L, dto);
     }
 
     /**
