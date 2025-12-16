@@ -1,4 +1,4 @@
-rootProject.name = 'my-market-app-7'
+rootProject.name = 'my-market-app-8'
 
 include 'bom'
 include 'report'
