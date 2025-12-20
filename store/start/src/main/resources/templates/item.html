@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 
 <head>
     <meta charset="utf-8">
@@ -16,9 +16,20 @@
                     <h2>
                         <span class="badge text-bg-success">Витрина магазина</span>
                     </h2>
-                    <a href="/orders" class="btn btn-secondary ms-auto bi bi-file-earmark-text"> Заказы</a>
-                    <a href="/cart/items" class="btn btn-secondary bi bi-cart4"> Корзина</a>
-                    <a href="/items" class="btn btn-secondary bi bi-arrow-left-square"> Главная</a>
+
+                    <div class="ms-auto"></div>
+
+                    <a href="/login"
+                       th:if="${!isAuth}"
+                       class="btn btn-secondary bi bi-box-arrow-in-right">
+                        Login
+                    </a>
+
+                    <th:block th:if="${isAuth}">
+                        <a href="/orders" class="btn btn-secondary bi bi-file-earmark-text">Заказы</a>
+                        <a href="/cart/items" class="btn btn-secondary bi bi-cart4">Корзина</a>
+                        <a href="/logout" class="btn btn-secondary bi bi-box-arrow-left">Logout</a>
+                    </th:block>
                 </div>
             </div>
         </div>
@@ -27,17 +38,30 @@
                 <div class="card">
                     <img class="p-2" th:src="${item.imgPath()}" alt="Нет изображения" width="300" height="300">
                     <div class="card-body">
-                        <h5 class="card-title" th:text="${item.title()}"></h5>
+                        <h5 th:text="${item.title()}"></h5>
                         <h5>
-                            <span class="badge text-bg-success justify-content-end" th:text="${item.price()}+' руб.'"></span>
+                        <span class="badge text-bg-success"
+                              th:text="${item.price()} + ' руб.'"></span>
                         </h5>
-                        <p class="card-text" th:text="${item.description()}"></p>
-                        <form th:action="@{'/items/' + ${item.id}}" method="post">
+                        <p th:text="${item.description()}"></p>
+
+                        <form th:action="@{'/items/' + ${item.id()}}"
+                              method="post"
+                              sec:authorize="isAuthenticated()">
                             <div class="hstack gap-3">
-                                <button type="submit" class="btn btn-outline-secondary" name="action" value="MINUS">-</button>
+                                <button type="submit" class="btn btn-outline-secondary"
+                                        name="action" value="MINUS">-</button>
+
                                 <span th:text="${cartCount}"></span>
-                                <button type="submit" class="btn btn-outline-secondary" name="action" value="PLUS">+</button>
-                                <button type="submit" class="btn btn-warning ms-auto bi bi-cart4" name="action" value="PLUS" th:if="${cartCount==0}"></button>
+
+                                <button type="submit" class="btn btn-outline-secondary"
+                                        name="action" value="PLUS">+</button>
+
+                                <button type="submit"
+                                        class="btn btn-warning ms-auto bi bi-cart4"
+                                        name="action" value="PLUS"
+                                        th:if="${cartCount == 0}">
+                                </button>
                             </div>
                         </form>
                     </div>

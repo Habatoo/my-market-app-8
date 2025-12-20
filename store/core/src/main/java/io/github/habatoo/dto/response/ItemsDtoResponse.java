@@ -18,6 +18,7 @@ public record ItemsDtoResponse(
         List<List<ItemDto>> itemsRows,
         CartDto cart,
         Paging paging,
-        Map<Long, Integer> itemCounts
+        Map<Long, Integer> itemCounts,
+        boolean isAuth
 ) {
 }

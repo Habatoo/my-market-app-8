@@ -11,12 +11,15 @@ import io.github.habatoo.mappers.ItemMapper;
 import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.CartRepository;
 import io.github.habatoo.repositories.ItemRepository;
+import io.github.habatoo.repositories.UserRepository;
 import io.github.habatoo.servicies.CartService;
 import io.github.habatoo.store.payment.api.PaymentsApi;
 import io.github.habatoo.store.payment.model.BalanceResponse;
 import io.github.habatoo.store.payment.model.PaymentRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Mono;
@@ -34,6 +37,7 @@ import java.util.Objects;
 public class CartServiceImpl implements CartService {
 
     private final CartRepository cartRepository;
+    private final UserRepository userRepository;
     private final CartItemRepository cartItemRepository;
     private final ItemRepository itemRepository;
     private final ItemMapper itemMapper;
@@ -109,7 +113,8 @@ public class CartServiceImpl implements CartService {
                                 .map(itemsDto -> {
                                     BigDecimal total = itemsDto.stream()
                                             .map(i -> i.price().multiply(BigDecimal.valueOf(i.count())))
-                                            .reduce(BigDecimal.ZERO, BigDecimal::add);;
+                                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                                    ;
 
                                     return CartDto.builder()
                                             .id(cart.getId())
@@ -146,13 +151,23 @@ public class CartServiceImpl implements CartService {
     }
 
     private Mono<Cart> getCurrentCart() {
-        return cartRepository.findAll()
-                .next()
-                .switchIfEmpty(Mono.defer(() -> {
-                    log.info("Корзина не найдена. Создаём новую корзину.");
-                    return cartRepository.save(new Cart());
-                }))
-                .doOnNext(c -> log.debug("Используется корзина: cartId={}", c.getId()));
+        return ReactiveSecurityContextHolder.getContext()
+                .map(SecurityContext::getAuthentication)
+                .flatMap(auth -> {
+                    if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
+                        return Mono.empty();
+                    }
+                    return userRepository.findByUsername(auth.getName());
+                })
+                .flatMap(user -> cartRepository.findByUserId(user.getId())
+                        .switchIfEmpty(Mono.defer(() -> {
+                            log.info("Корзина для пользователя {} не найдена. Создаём новую.", user.getUsername());
+                            Cart newCart = new Cart();
+                            newCart.setUserId(user.getId());
+                            newCart.setTotal(BigDecimal.ZERO);
+                            return cartRepository.save(newCart);
+                        })))
+                .doOnNext(c -> log.debug("Используется корзина: cartId={}, userId={}", c.getId(), c.getUserId()));
     }
 
     private Mono<Void> recalcAndSaveCartTotal(Long cartId) {

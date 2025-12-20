@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 
 <head>
     <meta charset="utf-8">
@@ -17,8 +17,20 @@
                 <h2>
                     <span class="badge text-bg-success">Витрина магазина</span>
                 </h2>
-                <a href="/orders" class="btn btn-secondary ms-auto bi bi-file-earmark-text"> Заказы</a>
-                <a href="/cart/items" class="btn btn-secondary bi bi-cart4"> Корзина</a>
+
+                <div class="ms-auto"></div>
+
+                <a href="/login"
+                   th:if="${!isAuth}"
+                   class="btn btn-secondary bi bi-box-arrow-in-right">
+                    Login
+                </a>
+
+                <th:block th:if="${isAuth}">
+                    <a href="/orders" class="btn btn-secondary bi bi-file-earmark-text">Заказы</a>
+                    <a href="/cart/items" class="btn btn-secondary bi bi-cart4">Корзина</a>
+                    <a href="/logout" class="btn btn-secondary bi bi-box-arrow-left">Logout</a>
+                </th:block>
             </div>
         </div>
     </div>
@@ -61,7 +73,9 @@
                         <span class="badge text-bg-success justify-content-end" th:text="${item.price()}+' руб.'"></span>
                     </h5>
                     <p class="card-text" th:text="${item.description()}"></p>
-                    <form method="post" th:action="@{/items}">
+                    <form sec:authorize="isAuthenticated()"
+                          method="post"
+                          th:action="@{/items}">
                         <div class="hstack gap-3">
                             <input type="hidden" name="id" th:value="${item.id()}">
                             <input type="hidden" name="search" th:value="${search}">

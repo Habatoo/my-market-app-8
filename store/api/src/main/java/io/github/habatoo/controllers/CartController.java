@@ -6,6 +6,7 @@ import io.github.habatoo.servicies.CartService;
 import io.github.habatoo.store.payment.model.PaymentRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,6 +36,7 @@ public class CartController {
      * @return имя шаблона страницы корзины
      */
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public Mono<String> showCart(Model model) {
         log.info("GET /cart/items — отображение корзины");
 
@@ -52,6 +54,7 @@ public class CartController {
      * @return имя шаблона страницы корзины
      */
     @PostMapping
+    @PreAuthorize("isAuthenticated()")
     public Mono<String> changeNumberOfItemsFromCart(
             @ModelAttribute ChangeNumberOfItemsRequestDto req,
             Model model) {

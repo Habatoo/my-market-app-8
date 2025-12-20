@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -26,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Реализация для работы с товарами.
@@ -48,36 +50,78 @@ public class ItemServiceImpl implements ItemService {
      */
     @Override
     public Mono<ItemsDtoResponse> getItems(GetItemsRequestDto request) {
-        Mono<CartDto> cartMono = cartService.getItemsInTheCart();
 
         int pageSize = Optional.ofNullable(request.getPageSize()).orElse(5);
         int pageNumber = Optional.ofNullable(request.getPageNumber()).orElse(1);
         String rawSearch = Optional.ofNullable(request.getSearch()).orElse("").trim();
         Sort sort = getSort(request);
 
-        return redisItemListStorage.getItems(
-                        rawSearch,
-                        pageSize,
-                        pageNumber,
-                        sort)
-                .flatMap(cachedItems -> cartMono
-                        .flatMap(cart -> loadCountsForItems(cachedItems, cart.id())
-                                .map(countMap -> buildItemsResponse(
-                                        splitByRows(cachedItems, 3), cart,
-                                        getPaging(pageSize, pageNumber, cachedItems.size()), countMap))
-                        ))
-                .switchIfEmpty(
-                        loadItemsFromDb(rawSearch, pageSize, pageNumber, sort, cartMono)
-                                .doOnNext(response -> {
-                                    redisItemListStorage.saveItems(
-                                                    rawSearch,
-                                                    pageSize,
-                                                    pageNumber,
-                                                    sort,
-                                                    flattenItems(response.itemsRows()))
-                                            .subscribe();
-                                })
-                );
+        Pageable pageable = PageRequest.of(pageNumber - 1, pageSize, sort);
+
+        Mono<Boolean> isAuthMono = getIsAuthMono();
+
+        Mono<List<ItemDto>> itemsMono =
+                redisItemListStorage.getItems(rawSearch, pageSize, pageNumber, sort)
+                        .switchIfEmpty(
+                                (rawSearch.isBlank()
+                                        ? repository.findAllBy(pageable)
+                                        : repository.findByTitleContainingOrDescriptionContaining(
+                                        rawSearch, rawSearch, pageable))
+                                        .collectList()
+                                        .map(mapper::toDto)
+                                        .doOnNext(items ->
+                                                redisItemListStorage.saveItems(
+                                                        rawSearch, pageSize, pageNumber, sort, items
+                                                ).thenReturn(items)
+                                        )
+                        );
+
+        Mono<Long> totalMono =
+                rawSearch.isBlank()
+                        ? repository.count()
+                        : repository.countByTitleContainingOrDescriptionContaining(rawSearch, rawSearch);
+
+        return Mono.zip(itemsMono, totalMono, isAuthMono)
+                .flatMap(tuple -> {
+                    List<ItemDto> items = tuple.getT1();
+                    long total = tuple.getT2();
+                    boolean isAuth = tuple.getT3();
+
+                    Paging paging = getPaging(pageSize, pageNumber, total);
+                    List<List<ItemDto>> rows = splitByRows(items, 3);
+
+                    if (!isAuth) {
+                        Map<Long, Integer> zeroCounts = items.stream()
+                                .collect(Collectors.toMap(
+                                        ItemDto::id,
+                                        item -> 0
+                                ));
+
+                        return Mono.just(
+                                ItemsDtoResponse.builder()
+                                        .itemsRows(rows)
+                                        .paging(paging)
+                                        .cart(obtainCartDto())
+                                        .itemCounts(zeroCounts)
+                                        .isAuth(false)
+                                        .build()
+                        );
+                    }
+
+                    return cartService.getItemsInTheCart()
+                            .flatMap(cart ->
+                                    loadCountsForItems(items, cart.id())
+                                            .map(counts ->
+                                                    ItemsDtoResponse.builder()
+                                                            .itemsRows(rows)
+                                                            .paging(paging)
+                                                            .cart(cart)
+                                                            .itemCounts(counts)
+                                                            .isAuth(true)
+                                                            .build()
+                                            )
+                            );
+                });
     }
 
     /**
@@ -85,21 +129,55 @@ public class ItemServiceImpl implements ItemService {
      */
     @Override
     public Mono<ItemDtoResponse> getItem(Long id) {
-        Mono<ItemDto> itemMono = redisItemStorage.getItem(id)
-                .switchIfEmpty(
-                        repository.findById(id)
-                                .switchIfEmpty(Mono.error(
-                                        new IllegalStateException("Товар с id=" + id + " не найден")))
-                                .map(mapper::toDto)
-                                .flatMap(dto -> redisItemStorage.saveItem(id, dto)
-                                        .thenReturn(dto))
-                );
 
-        Mono<CartDto> cartMono = cartService.getItemsInTheCart()
-                .defaultIfEmpty(obtainCartDto());
+        Mono<ItemDto> itemMono =
+                redisItemStorage.getItem(id)
+                        .switchIfEmpty(
+                                repository.findById(id)
+                                        .switchIfEmpty(Mono.error(
+                                                new IllegalStateException("Товар с id=" + id + " не найден")
+                                        ))
+                                        .map(mapper::toDto)
+                                        .flatMap(dto ->
+                                                redisItemStorage.saveItem(id, dto).thenReturn(dto)
+                                        )
+                        );
 
-        return itemMono.zipWith(cartMono)
-                .flatMap(tuple -> buildItemResponse(tuple.getT1(), tuple.getT2(), id));
+        Mono<Boolean> isAuthMono = getIsAuthMono();
+
+        return Mono.zip(itemMono, isAuthMono)
+                .flatMap(tuple -> {
+                    ItemDto item = tuple.getT1();
+                    boolean isAuth = tuple.getT2();
+
+                    if (!isAuth) {
+                        return Mono.just(
+                                ItemDtoResponse.builder()
+                                        .item(item)
+                                        .cartCount(0)
+                                        .build()
+                        );
+                    }
+
+                    return cartService.getItemsInTheCart()
+                            .flatMap(cart ->
+                                    cartItemRepository
+                                            .findCountByCartIdAndItemId(cart.id(), item.id())
+                                            .defaultIfEmpty(0)
+                                            .map(count ->
+                                                    ItemDtoResponse.builder()
+                                                            .item(item)
+                                                            .cartCount(count)
+                                                            .build()
+                                            )
+                            );
+                });
+    }
+
+    private Mono<Boolean> getIsAuthMono() {
+        return ReactiveSecurityContextHolder.getContext()
+                .map(ctx -> ctx.getAuthentication().isAuthenticated())
+                .defaultIfEmpty(false);
     }
 
     /**
