@@ -113,6 +113,7 @@ public class ItemController {
                 .doOnNext(item -> {
                     model.addAttribute(ITEM, item.item());
                     model.addAttribute("cartCount", item.cartCount());
+                    model.addAttribute("isAuth", item.isAuth());
                 })
                 .thenReturn(ITEM);
     }
@@ -136,8 +137,11 @@ public class ItemController {
         req.setId(id);
 
         return itemService.changeNumberOfItemsFromPage(req)
-                .doOnNext(item -> model.addAttribute(ITEM, item.item()))
-                .doOnNext(item -> model.addAttribute("cartCount", item.cartCount()))
+                .doOnNext(item -> {
+                    model.addAttribute(ITEM, item.item());
+                    model.addAttribute("cartCount", item.cartCount());
+                    model.addAttribute("isAuth", item.isAuth());
+                })
                 .thenReturn(ITEM);
     }
 }

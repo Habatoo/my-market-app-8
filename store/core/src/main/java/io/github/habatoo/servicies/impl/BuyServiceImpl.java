@@ -138,7 +138,7 @@ public class BuyServiceImpl implements BuyService {
     private Mono<Long> persistOrderAndCleanup(Cart cart,
                                               List<CartItem> cartItems,
                                               BigDecimal totalAmount) {
-        Order newOrder = buildOrderEntity(totalAmount);
+        Order newOrder = buildOrderEntity(totalAmount, cart.getUserId());
 
         return orderRepository.save(newOrder)
                 .flatMap(savedOrder ->
@@ -208,11 +208,13 @@ public class BuyServiceImpl implements BuyService {
      * Фабричный метод для создания сущности заказа.
      *
      * @param totalAmount итоговая сумма.
+     * @param userId      идентификатор пользователя.
      * @return новая сущность {@link Order}, готовая к сохранению.
      */
-    private Order buildOrderEntity(BigDecimal totalAmount) {
+    private Order buildOrderEntity(BigDecimal totalAmount, Long userId) {
         Order order = new Order();
         order.setDateTime(LocalDateTime.now());
+        order.setUserId(userId);
         order.setTotalSum(totalAmount);
         return order;
     }

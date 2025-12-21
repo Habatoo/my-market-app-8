@@ -12,6 +12,7 @@ import java.util.Map;
  * @param cart       объект корзины
  * @param paging     постраничное разбиение
  * @param itemCounts количесво товара
+ * @param isAuth     флаг авторизации
  */
 @Builder
 public record ItemsDtoResponse(

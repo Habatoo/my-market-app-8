@@ -24,7 +24,10 @@ public class User {
 
     private String username;
 
-    private String password;
+    /**
+     * Для хранения UUID из Keycloak (поле "sub")
+     */
+    private String externalId;
 
     private String role;
 }

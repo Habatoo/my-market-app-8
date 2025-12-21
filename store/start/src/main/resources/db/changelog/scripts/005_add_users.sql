@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
     username VARCHAR(100) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
+    external_id VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL
 );
 
@@ -25,5 +25,6 @@ ADD CONSTRAINT fk_order_user
 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 -- Индекс на user в позиции корзины и заказа
+CREATE UNIQUE INDEX idx_users_external_id ON users(external_id);
 CREATE UNIQUE INDEX idx_cart_user ON carts(user_id);
 CREATE INDEX idx_order_user ON orders(user_id);
