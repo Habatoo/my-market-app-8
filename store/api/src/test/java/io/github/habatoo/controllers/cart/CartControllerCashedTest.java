@@ -15,6 +15,7 @@ import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
@@ -25,6 +26,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
 
 /**
  * Unit-тесты для CartController.
@@ -51,6 +53,7 @@ public class CartControllerCashedTest {
      * Проверяет, что контроллер возвращает нужный шаблон и правильный объект корзины.
      */
     @Test
+    @WithMockUser
     @DisplayName("GET \"/cart/items\" — отображение корзины пользователя")
     void showCartTest() {
         CartDto cartDto = new CartDto(
@@ -82,6 +85,7 @@ public class CartControllerCashedTest {
      * Проверка передачи DTO и возврата правильного шаблона с обновлённой корзиной.
      */
     @Test
+    @WithMockUser
     @DisplayName("POST /cart/items — корректное изменение количества и возврат view 'cart'")
     void testChangeNumberOfItemsFromCart() {
         ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
@@ -101,7 +105,9 @@ public class CartControllerCashedTest {
         when(cartService.changeNumberOfItemsFromCart(any())).thenReturn(Mono.just(updated));
         when(cartService.canProcessPayment(any())).thenReturn(Mono.just(Boolean.TRUE));
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(csrf())
+                .post()
                 .uri("/cart/items")
                 .bodyValue(req)
                 .exchange()
@@ -119,13 +125,16 @@ public class CartControllerCashedTest {
      * POST /cart/items — пустой результат ⇒ возвращает 404 view
      */
     @Test
+    @WithMockUser
     @DisplayName("POST /cart/items — если элемент корзины не найден, возвращается view пустой cart")
     void testChangeNumberOfItemsNotFound() {
         ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder().build();
         when(cartService.changeNumberOfItemsFromCart(any()))
                 .thenReturn(Mono.empty());
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(csrf())
+                .post()
                 .uri("/cart/items")
                 .bodyValue(req)
                 .exchange()
@@ -134,5 +143,62 @@ public class CartControllerCashedTest {
                 .value(body -> assertTrue(body.contains("cart"), "Должна отображаться страница cart"));
 
         verify(cartService).changeNumberOfItemsFromCart(eq(req));
+    }
+
+    /**
+     * Тест: неавторизованный пользователь пытается просмотреть корзину.
+     * Ожидаем 401 Unauthorized (или 302, если настроен редирект на логин).
+     */
+    @Test
+    @DisplayName("GET /cart/items — анонимный пользователь получает 401")
+    void showCartUnauthorizedTest() {
+        webTestClient.get()
+                .uri("/cart/items")
+                .exchange()
+                // Если в SecurityConfig стоит .oauth2Login(), может быть .is3xxRedirection()
+                // Но для юнит-теста контроллера чаще проверяем .isUnauthorized()
+                .expectStatus().isUnauthorized();
+
+        verifyNoInteractions(cartService);
+    }
+
+    /**
+     * Тест: неавторизованный пользователь пытается изменить количество.
+     * Даже с валидным CSRF, отсутствие сессии должно блокировать запрос.
+     */
+    @Test
+    @DisplayName("POST /cart/items — анонимный пользователь получает 401")
+    void changeNumberOfItemsUnauthorizedTest() {
+        ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
+                .id(10L)
+                .action(Action.PLUS)
+                .build();
+
+        webTestClient
+                .mutateWith(csrf())
+                .post()
+                .uri("/cart/items")
+                .bodyValue(req)
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        verifyNoInteractions(cartService);
+    }
+
+    /**
+     * Тест: проверка отсутствия CSRF токена.
+     * Даже если пользователь авторизован, отсутствие CSRF в POST запросе должно вернуть 403.
+     */
+    @Test
+    @WithMockUser
+    @DisplayName("POST /cart/items — отсутствие CSRF возвращает 403 Forbidden")
+    void changeNumberOfItemsNoCsrfTest() {
+        ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder().build();
+
+        webTestClient.post() // НЕ добавляем .mutateWith(csrf())
+                .uri("/cart/items")
+                .bodyValue(req)
+                .exchange()
+                .expectStatus().isForbidden();
     }
 }

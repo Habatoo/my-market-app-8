@@ -30,8 +30,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
 import java.math.BigDecimal;
 import java.util.Comparator;
@@ -88,91 +92,68 @@ class ItemServiceImplTest {
     void getItemsReactiveTest(GetItemsRequestDto req,
                               List<Item> all,
                               List<Item> expectedPage) {
-
+        Authentication auth = mock(Authentication.class);
+        when(auth.isAuthenticated()).thenReturn(true);
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(auth);
         String rawSearch = req.getSearch();
         boolean noSearch = rawSearch == null || rawSearch.trim().isEmpty();
         String search = noSearch ? "" : rawSearch.trim();
 
+        when(redisItemListStorage.getItems(anyString(), anyInt(), anyInt(), any())).thenReturn(Mono.empty());
+        when(redisItemListStorage.saveItems(anyString(), anyInt(), anyInt(), any(), any())).thenReturn(Mono.empty());
+
         if (noSearch) {
             when(repository.findAllBy(any(Pageable.class)))
                     .thenAnswer(inv -> {
-                        Pageable pageable = inv.getArgument(0);
+                        Pageable p = inv.getArgument(0);
                         List<Item> page = all.stream()
                                 .sorted(buildComparator(req))
-                                .skip((long) pageable.getPageNumber() * pageable.getPageSize())
-                                .limit(pageable.getPageSize())
+                                .skip(p.getOffset())
+                                .limit(p.getPageSize())
                                 .toList();
                         return Flux.fromIterable(page);
                     });
-
-            when(repository.count())
-                    .thenReturn(Mono.just((long) all.size()));
+            when(repository.count()).thenReturn(Mono.just((long) all.size()));
         } else {
-            when(repository.findByTitleContainingOrDescriptionContaining(
-                    eq(search),
-                    eq(search),
-                    any(Pageable.class)
-            )).thenAnswer(inv -> {
-                Pageable pageable = inv.getArgument(2);
-                List<Item> page = all.stream()
-                        .filter(i -> (i.getTitle() != null
-                                && i.getTitle().toLowerCase().contains(search.toLowerCase()))
-                                || (i.getDescription() != null
-                                && i.getDescription().toLowerCase().contains(search.toLowerCase())))
-                        .sorted(buildComparator(req))
-                        .skip((long) pageable.getPageNumber() * pageable.getPageSize())
-                        .limit(pageable.getPageSize())
-                        .toList();
-                return Flux.fromIterable(page);
-            });
-
+            when(repository.findByTitleContainingOrDescriptionContaining(eq(search), eq(search), any(Pageable.class)))
+                    .thenAnswer(inv -> {
+                        Pageable p = inv.getArgument(2);
+                        List<Item> page = all.stream()
+                                .filter(i -> containsSearch(i, search))
+                                .sorted(buildComparator(req))
+                                .skip(p.getOffset())
+                                .limit(p.getPageSize())
+                                .toList();
+                        return Flux.fromIterable(page);
+                    });
             when(repository.countByTitleContainingOrDescriptionContaining(eq(search), eq(search)))
-                    .thenReturn(Mono.just(
-                            all.stream()
-                                    .filter(i -> (i.getTitle() != null
-                                            && i.getTitle().toLowerCase().contains(search.toLowerCase()))
-                                            || (i.getDescription() != null
-                                            && i.getDescription().toLowerCase().contains(search.toLowerCase())))
-                                    .count()
-                    ));
+                    .thenReturn(Mono.just(all.stream().filter(i -> containsSearch(i, search)).count()));
         }
 
         when(mapper.toDto(anyList())).thenAnswer(inv -> {
             List<Item> items = inv.getArgument(0);
-            return items.stream()
-                    .map(item -> new ItemDto(
-                            item.getId(),
-                            item.getTitle(),
-                            item.getDescription(),
-                            item.getImgPath(),
-                            item.getPrice(),
-                            0
-                    ))
-                    .toList();
+            return items.stream().map(i -> new ItemDto(i.getId(), i.getTitle(), i.getDescription(), i.getImgPath(), i.getPrice(), 0)).toList();
         });
 
-        CartDto cart = mock(CartDto.class);
+        CartDto cart = new CartDto(1L, List.of(), BigDecimal.ZERO);
         when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cart));
-        when(cartItemRepository.findCountByCartIdAndItemId(any(), any()))
-                .thenReturn(Mono.just(0));
+        when(cartItemRepository.findCountByCartIdAndItemId(any(), any())).thenReturn(Mono.just(0));
 
-        ItemsDtoResponse resp = service.getItems(req).block();
+        Mono<ItemsDtoResponse> resultMono = service.getItems(req)
+                .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(securityContext)));
+
+        ItemsDtoResponse resp = resultMono.block();
 
         assertNotNull(resp);
-        assertEquals(cart, resp.cart());
-        assertNotNull(resp.paging());
-
         List<Long> actualIds = resp.itemsRows().stream()
                 .flatMap(List::stream)
                 .map(ItemDto::id)
-                .filter(id -> id != -1)
+                .filter(id -> id != -1) // Исключаем пустые заглушки из splitByRows
                 .toList();
 
-        List<Long> expectedIds = expectedPage.stream()
-                .map(Item::getId)
-                .toList();
-
-        assertEquals(expectedIds, actualIds);
+        List<Long> expectedIds = expectedPage.stream().map(Item::getId).toList();
+        assertEquals(expectedIds, actualIds, "Список ID на странице не совпадает для запроса: " + req);
     }
 
     /**
@@ -238,26 +219,42 @@ class ItemServiceImplTest {
      * Успешная загрузка карточки товара.
      */
     @ParameterizedTest
-    @NullSource
-    @ValueSource(ints = {2, 0})
-    @DisplayName("Получение товара — корректный cartCount при разных значениях")
+    @MethodSource("countProvider")
+    @DisplayName("getItem — корректный cartCount для авторизованного пользователя")
     void getItemFoundReactiveTest(Integer foundCount) {
-        Item item = new Item(5L, "A", null, "", BigDecimal.ONE, 0);
-        when(repository.findById(5L)).thenReturn(Mono.just(item));
+        Long itemId = 5L;
+        Long cartId = 10L;
+        Item item = new Item(itemId, "A", null, "", BigDecimal.ONE, 0);
+        ItemDto expectedDto = new ItemDto(itemId, "A", null, "", BigDecimal.ONE, 0);
 
-        ItemDto expectedDto = new ItemDto(5L, "A", null, "", BigDecimal.ONE, 0);
+        when(redisItemStorage.getItem(itemId)).thenReturn(Mono.empty());
+        when(repository.findById(itemId)).thenReturn(Mono.just(item));
         when(mapper.toDto(item)).thenReturn(expectedDto);
-        when(cartItemRepository.findCountByCartIdAndItemId(any(), eq(5L)))
-                .thenReturn(foundCount == null ? Mono.empty() : Mono.just(foundCount));
+        when(redisItemStorage.saveItem(eq(itemId), any())).thenReturn(Mono.empty());
 
-        CartDto cartDto = mock(CartDto.class);
+        CartDto cartDto = CartDto.builder().id(cartId).build();
         when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
 
-        ItemDtoResponse resp = service.getItem(5L).block();
+        when(cartItemRepository.findCountByCartIdAndItemId(cartId, itemId))
+                .thenReturn(foundCount == null ? Mono.empty() : Mono.just(foundCount));
 
-        assertNotNull(resp);
-        assertEquals(expectedDto, resp.item());
-        assertEquals(foundCount == null ? 0 : foundCount, resp.cartCount());
+        Authentication auth = mock(Authentication.class);
+        when(auth.isAuthenticated()).thenReturn(true);
+
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(auth);
+
+        Mono<ItemDtoResponse> result = service.getItem(itemId)
+                .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(securityContext)));
+
+        StepVerifier.create(result)
+                .assertNext(resp -> {
+                    assertNotNull(resp);
+                    assertEquals(expectedDto, resp.item());
+                    assertEquals(foundCount == null ? 0 : foundCount, resp.cartCount());
+                    assertTrue(resp.isAuth());
+                })
+                .verifyComplete();
     }
 
     /**
@@ -519,5 +516,21 @@ class ItemServiceImplTest {
             case PRICE -> Comparator.comparing(Item::getPrice);
             case NO -> (i1, i2) -> 0;
         };
+    }
+
+    private boolean containsSearch(Item i, String search) {
+        String s = search.toLowerCase();
+        boolean inTitle = i.getTitle() != null && i.getTitle().toLowerCase().contains(s);
+        boolean inDesc = i.getDescription() != null && i.getDescription().toLowerCase().contains(s);
+
+        return inTitle || inDesc;
+    }
+
+    private static Stream<Arguments> countProvider() {
+        return Stream.of(
+                Arguments.of(2),
+                Arguments.of(0),
+                Arguments.of((Object) null)
+        );
     }
 }

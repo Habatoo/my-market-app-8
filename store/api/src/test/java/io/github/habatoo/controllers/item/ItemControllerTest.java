@@ -8,6 +8,7 @@ import io.github.habatoo.dto.request.GetItemsRequestDto;
 import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.dto.response.ItemDtoResponse;
 import io.github.habatoo.dto.response.ItemsDtoResponse;
+import io.github.habatoo.dto.response.Paging;
 import io.github.habatoo.servicies.CartService;
 import io.github.habatoo.servicies.ItemService;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +25,8 @@ import org.springframework.validation.BindingResult;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
@@ -58,9 +61,12 @@ class ItemControllerTest {
      * Проверяет добавление объектов в модель и возврат правильного имени шаблона.
      */
     @ParameterizedTest
-    @MethodSource("paramsCombinations")
-    @DisplayName("GET /items — все варианты параметров (null, пустые, корректные)")
-    void testGetItemsVariants(String search, Sort sort, Integer pageNumber, Integer pageSize) {
+    @MethodSource("getItemsFullParameters")
+    @DisplayName("GET /items — полное покрытие входных параметров и состояний ответа")
+    void testGetItemsFullCoverageTest(
+            String search, Sort sort, Integer pageNumber, Integer pageSize,
+            boolean isAuth, int rowsCount
+    ) {
         GetItemsRequestDto req = GetItemsRequestDto.builder()
                 .search(search)
                 .sort(sort)
@@ -69,6 +75,15 @@ class ItemControllerTest {
                 .build();
 
         ItemsDtoResponse response = mock(ItemsDtoResponse.class);
+        List<List<ItemDto>> mockRows = Stream.generate(() -> List.of(mock(ItemDto.class)))
+                .limit(rowsCount)
+                .toList();
+
+        when(response.itemsRows()).thenReturn(mockRows);
+        when(response.isAuth()).thenReturn(isAuth);
+        when(response.paging()).thenReturn(mock(Paging.class));
+        when(response.itemCounts()).thenReturn(mock(Map.class));
+
         when(itemService.getItems(any(GetItemsRequestDto.class))).thenReturn(Mono.just(response));
 
         Mono<String> result = itemController.getItems(req, model);
@@ -77,13 +92,16 @@ class ItemControllerTest {
                 .expectNext("items")
                 .verifyComplete();
 
-        verify(itemService).getItems(any(GetItemsRequestDto.class));
-        verify(model).addAttribute("cart", response.cart());
-        verify(model).addAttribute("items", response.itemsRows());
+        verify(model).addAttribute("items", mockRows);
         verify(model).addAttribute("search", (search == null ? "" : search));
         verify(model).addAttribute("sort", sort);
+        verify(model).addAttribute("isAuth", isAuth);
         verify(model).addAttribute("paging", response.paging());
         verify(model).addAttribute("itemCounts", response.itemCounts());
+
+        verify(itemService).getItems(argThat(dto ->
+                Objects.equals(dto.getSearch(), search) && dto.getSort() == sort
+        ));
     }
 
     /**
@@ -92,7 +110,7 @@ class ItemControllerTest {
      */
     @Test
     @DisplayName("GET /items — ошибка в данных")
-    void changeNumberOfItems_shouldReturnError_whenBindingResultHasErrors() {
+    void changeNumberOfItemsWhenBindingResultHasErrorsTest() {
         ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
                 .action(Action.MINUS)
                 .build();
@@ -247,16 +265,26 @@ class ItemControllerTest {
         );
     }
 
-    private static Stream<Arguments> paramsCombinations() {
+    /**
+     * Расширенный источник данных, объединяющий старые комбинации параметров
+     * с новыми условиями (авторизация и наполнение данными).
+     * * Параметры: search, sort, pageNumber, pageSize, isAuth, rowsCount
+     */
+    private static Stream<Arguments> getItemsFullParameters() {
         return Stream.of(
-                Arguments.of(null, null, null, null),
-                Arguments.of("", Sort.NO, 1, 5),
-                Arguments.of("test", Sort.NO, 1, 5),
-                Arguments.of("поиск", Sort.PRICE, 2, 10),
-                Arguments.of("", Sort.ALPHA, null, null),
-                Arguments.of(null, Sort.NO, 1, null),
-                Arguments.of("   ", Sort.NO, null, 5),
-                Arguments.of(null, null, 99, 99)
+                Arguments.of(null, null, null, null, false, 0),
+                Arguments.of("", Sort.NO, 1, 5, true, 5),
+                Arguments.of("test", Sort.NO, 1, 5, false, 2),
+                Arguments.of("поиск", Sort.PRICE, 2, 10, true, 10),
+                Arguments.of("", Sort.ALPHA, null, null, false, 0),
+                Arguments.of(null, Sort.NO, 1, null, true, 3),
+                Arguments.of("   ", Sort.NO, null, 5, false, 1),
+                Arguments.of(null, null, 99, 99, true, 0),
+                Arguments.of("special-char-!@#", Sort.PRICE, 1, 5, true, 1),
+                Arguments.of("long".repeat(10), Sort.NO, 1, 10, false, 0),
+                Arguments.of(null, Sort.ALPHA, -1, -5, true, 5),
+                Arguments.of("only-auth-user-items", null, 1, 10, true, 15),
+                Arguments.of("no-items-found", Sort.NO, 1, 10, false, 0)
         );
     }
 }

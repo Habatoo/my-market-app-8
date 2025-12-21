@@ -12,6 +12,7 @@ import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.http.HttpHeaders;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
@@ -21,6 +22,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
 
 /**
  * <h2>Тесты для BuyController c максимальным кешированием WebFluxTest</h2>
@@ -49,31 +51,17 @@ class BuyControllerCashedTest {
      * Тест успешной покупки: редирект на созданный заказ
      */
     @Test
+    @WithMockUser
     @DisplayName("POST /buy — успешная покупка, редирект на созданный заказ")
     void buySuccessTest() {
-        CartDto cart = new CartDto(
-                1L,
-                List.of(
-                        new CartItemDto(
-                                new ItemDto(
-                                        15L,
-                                        "title",
-                                        "desc",
-                                        "img/path",
-                                        BigDecimal.TEN,
-                                        1
-                                ),
-                                1,
-                                BigDecimal.TEN
-                        )
-                ),
-                BigDecimal.TEN
-        );
+        CartDto cart = createCartDto(1L);
 
         when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cart));
         when(buyService.buy(1L)).thenReturn(Mono.just(111L));
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(csrf())
+                .post()
                 .uri("/buy")
                 .exchange()
                 .expectStatus().is3xxRedirection()
@@ -88,18 +76,17 @@ class BuyControllerCashedTest {
      * Тест, когда корзина есть, но заказ не создается (пустой Mono) — редирект на /orders/
      */
     @Test
+    @WithMockUser
     @DisplayName("POST /buy — корзина есть, но заказ не создается, редирект на /orders/")
     void buyNoOrderTest() {
-        CartDto cart = new CartDto(
-                5L,
-                List.of(),
-                BigDecimal.ZERO
-        );
+        CartDto cart = createCartDto(5L);
 
         when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cart));
         when(buyService.buy(5L)).thenReturn(Mono.empty());
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(csrf())
+                .post()
                 .uri("/buy")
                 .exchange()
                 .expectStatus().is3xxRedirection()
@@ -114,11 +101,14 @@ class BuyControllerCashedTest {
      * Тест, когда корзина пуста — редирект на /orders/
      */
     @Test
+    @WithMockUser
     @DisplayName("POST /buy — корзина пуста, редирект на /orders/")
     void buyEmptyCartTest() {
         when(cartService.getItemsInTheCart()).thenReturn(Mono.empty());
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(csrf())
+                .post()
                 .uri("/buy")
                 .exchange()
                 .expectStatus().is3xxRedirection()
@@ -127,5 +117,31 @@ class BuyControllerCashedTest {
 
         verify(cartService).getItemsInTheCart();
         verifyNoInteractions(buyService);
+    }
+
+    /**
+     * Тест, не авторизованный пользователь - проверка редиректа.
+     */
+    @Test
+    @DisplayName("POST /buy — неавторизованный пользователь получает 401 или редирект на логин")
+    void buyUnauthorizedTest() {
+        webTestClient
+                .mutateWith(csrf())
+                .post()
+                .uri("/buy")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    private CartDto createCartDto(Long id) {
+        return new CartDto(
+                id,
+                List.of(new CartItemDto(
+                        new ItemDto(15L, "title", "desc", "img", BigDecimal.TEN, 1),
+                        1,
+                        BigDecimal.TEN
+                )),
+                BigDecimal.TEN
+        );
     }
 }
