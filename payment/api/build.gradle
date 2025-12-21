@@ -28,6 +28,7 @@ dependencies {
     implementation 'org.openapitools:jackson-databind-nullable'
     implementation 'org.hibernate.validator:hibernate-validator'
     implementation 'org.glassfish.expressly:expressly'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
 
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'

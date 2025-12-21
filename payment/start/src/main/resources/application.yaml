@@ -1,8 +1,16 @@
 spring:
   application:
     name: payment
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:8082/realms/my-market-realm/protocol/openid-connect/certs
+          issuer-uri: http://localhost:8082/realms/my-market-realm
+
 server:
   port: 8081
 
 application:
   balance: 300.00
+  redis-ttl-minutes: ${SPRING_REDIS_TTL:1}

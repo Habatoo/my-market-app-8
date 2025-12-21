@@ -14,6 +14,8 @@ paths:
       tags:
         - Payments
       summary: Получение доступного баланса пользователя
+      security:
+        - bearerAuth: [ ]
       operationId: getWalletBalance
       responses:
         '200':
@@ -33,6 +35,8 @@ paths:
       tags:
         - Payments
       summary: Создание платежа (списание средств)
+      security:
+        - bearerAuth: [ ]
       operationId: createPayment
 
       parameters:
@@ -93,3 +97,9 @@ components:
         status:
           type: string
           enum: [SUCCESS, FAILED]
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

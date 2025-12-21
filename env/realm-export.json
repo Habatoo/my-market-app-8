@@ -1,0 +1,51 @@
+{
+  "realm": "my-market-realm",
+  "enabled": true,
+  "clients": [
+    {
+      "clientId": "my-market-app",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "90bd600c-7781-4435-961e-1f5139265f7c",
+      "redirectUris": [
+        "http://localhost:8080/login/oauth2/code/keycloak"
+      ],
+      "webOrigins": [
+        "http://localhost:8080"
+      ],
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "USER",
+        "description": "Базовая роль пользователя"
+      }
+    ]
+  },
+  "users": [
+    {
+      "username": "user",
+      "enabled": true,
+      "email": "user@example.com",
+      "firstName": "Market",
+      "lastName": "User",
+      "createdTimestamp": 1734700000000,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ]
+    }
+  ]
+}
