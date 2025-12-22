@@ -26,7 +26,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
     annotationProcessor 'org.projectlombok:lombok'
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
-
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    implementation 'org.springframework.security:spring-security-oauth2-authorization-server'
+    implementation 'org.springframework.security:spring-security-oauth2-jose'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
     testImplementation 'org.testcontainers:junit-jupiter'
@@ -35,6 +37,7 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
 
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

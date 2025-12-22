@@ -9,9 +9,9 @@ import org.springframework.security.oauth2.client.registration.ReactiveClientReg
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import reactor.test.StepVerifier;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -47,17 +47,19 @@ class SecurityConfigurationsTest {
 
             Jwt jwt = Jwt.withTokenValue("mock-token")
                     .header("alg", "none")
-                    .claim("realm_access", Map.of("roles", List.of("ADMIN", "MANAGER")))
+                    .claim("realm_access.roles", List.of("ADMIN", "MANAGER"))
                     .build();
 
-            converter.convert(jwt)
-                    .subscribe(auth -> {
+            StepVerifier.create(converter.convert(jwt))
+                    .assertNext(auth -> {
                         List<String> authorities = auth.getAuthorities().stream()
                                 .map(GrantedAuthority::getAuthority)
                                 .toList();
 
-                        assertThat(authorities).containsExactlyInAnyOrder("ROLE_ADMIN", "ROLE_MANAGER");
-                    });
+                        assertThat(authorities)
+                                .containsExactlyInAnyOrder("ROLE_ADMIN", "ROLE_MANAGER");
+                    })
+                    .verifyComplete();
         });
     }
 }
