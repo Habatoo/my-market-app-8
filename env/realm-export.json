@@ -10,6 +10,9 @@
       "redirectUris": [
         "http://localhost:8080/login/oauth2/code/keycloak"
       ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:8080/"
+      },
       "webOrigins": [
         "http://localhost:8080"
       ],
@@ -34,6 +37,25 @@
       "email": "user@example.com",
       "firstName": "Market",
       "lastName": "User",
+      "createdTimestamp": 1734700000000,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ]
+    },
+    {
+      "username": "customer",
+      "enabled": true,
+      "email": "customer@example.com",
+      "firstName": "Market",
+      "lastName": "Customer",
       "createdTimestamp": 1734700000000,
       "emailVerified": true,
       "credentials": [

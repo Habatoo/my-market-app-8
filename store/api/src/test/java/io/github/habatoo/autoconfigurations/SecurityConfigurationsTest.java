@@ -9,6 +9,8 @@ import org.springframework.security.oauth2.client.registration.ReactiveClientReg
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.security.web.server.authentication.logout.LogoutWebFilter;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.test.StepVerifier;
 
 import java.util.List;
@@ -59,6 +61,34 @@ class SecurityConfigurationsTest {
                         assertThat(authorities)
                                 .containsExactlyInAnyOrder("ROLE_ADMIN", "ROLE_MANAGER");
                     })
+                    .verifyComplete();
+        });
+    }
+
+    @Test
+    @DisplayName("Проверка наличия LogoutWebFilter в цепочке")
+    void testLogoutFilterIsPresent() {
+        contextRunner.run(context -> {
+            SecurityWebFilterChain chain = context.getBean(SecurityWebFilterChain.class);
+
+            boolean hasLogoutFilter = Boolean.TRUE.equals(chain.getWebFilters()
+                    .collectList()
+                    .map(filters -> filters.stream().anyMatch(f -> f instanceof LogoutWebFilter))
+                    .block());
+
+            assertThat(hasLogoutFilter).isTrue();
+        });
+    }
+
+    @Test
+    @DisplayName("Проверка правил доступа (Security Matchers)")
+    void testSecurityMatchers() {
+        contextRunner.run(context -> {
+            SecurityWebFilterChain chain = context.getBean(SecurityWebFilterChain.class);
+
+            ServerWebExchange mockExchange = mock(ServerWebExchange.class);
+            StepVerifier.create(chain.matches(mockExchange))
+                    .expectNext(true)
                     .verifyComplete();
         });
     }

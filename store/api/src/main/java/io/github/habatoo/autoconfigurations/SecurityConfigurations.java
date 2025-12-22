@@ -5,18 +5,26 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
+import org.springframework.security.oauth2.client.oidc.web.server.logout.OidcClientInitiatedServerLogoutSuccessHandler;
+import org.springframework.security.oauth2.client.registration.ReactiveClientRegistrationRepository;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtGrantedAuthoritiesConverterAdapter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
-import org.springframework.security.web.server.authentication.logout.RedirectServerLogoutSuccessHandler;
 
 @AutoConfiguration
 @EnableWebFluxSecurity
 public class SecurityConfigurations {
 
     @Bean
-    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
+    public SecurityWebFilterChain securityWebFilterChain(
+            ServerHttpSecurity http,
+            ReactiveClientRegistrationRepository clientRegistrationRepository) {
+
+        OidcClientInitiatedServerLogoutSuccessHandler logoutHandler =
+                new OidcClientInitiatedServerLogoutSuccessHandler(clientRegistrationRepository);
+        logoutHandler.setPostLogoutRedirectUri("{baseUrl}/");
+
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .authorizeExchange(exchanges -> exchanges
@@ -27,7 +35,7 @@ public class SecurityConfigurations {
                 .oauth2Login(Customizer.withDefaults())
                 .logout(logout -> logout
                         .logoutUrl("/logout")
-                        .logoutSuccessHandler(new RedirectServerLogoutSuccessHandler())
+                        .logoutSuccessHandler(logoutHandler)
                 )
                 .build();
     }
