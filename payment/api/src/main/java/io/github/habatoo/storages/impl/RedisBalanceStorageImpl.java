@@ -10,11 +10,22 @@ import reactor.core.publisher.Mono;
 import java.math.BigDecimal;
 import java.time.Duration;
 
+/**
+ * Реализация для кэширования и получения отдельных товаров (Item) в Redis.
+ * Используется как кэш-слой для быстрого доступа к данным по идентификатору товара.
+ *
+ * <p>Ключом в Redis выступает идентификатор товара ({@code id}). Значением является
+ * объект {@link java.math.BigDecimal}, сохранённый с использованием настроенного времени жизни (TTL),
+ * определяемого конфигурацией приложения.</p>
+ *
+ * <p>Все операции выполняются в реактивной парадигме (Project Reactor) и возвращают
+ * реактивный тип {@code Mono}.</p>
+ */
 @Slf4j
 @Service
 public class RedisBalanceStorageImpl implements RedisBalanceStorage {
 
-    public static String CACHE_KEY_PREFIX = "balance:";
+    private static String CACHE_KEY_PREFIX = "balance:";
 
     private final Duration timeToLive;
 

@@ -30,6 +30,9 @@ public class RedisBalanceService implements BalanceService {
         this.redisBalanceStorage = redisBalanceStorage;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public Mono<BigDecimal> getBalance() {
         return getCurrentUsername()
@@ -38,6 +41,9 @@ public class RedisBalanceService implements BalanceService {
                         .switchIfEmpty(Mono.just(initialBalance)));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public Mono<BigDecimal> decrease(BigDecimal amount) {
         return getCurrentUsername()
@@ -50,8 +56,15 @@ public class RedisBalanceService implements BalanceService {
                         }));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public Mono<Void> reset(BigDecimal amount) {
+        if (amount.signum() < 0) {
+            return Mono.error(new IllegalArgumentException("Баланс не может быть отрицательным"));
+        }
+
         return getCurrentUsername()
                 .flatMap(username -> redisBalanceStorage.saveBalanceByName(username, amount))
                 .then();
