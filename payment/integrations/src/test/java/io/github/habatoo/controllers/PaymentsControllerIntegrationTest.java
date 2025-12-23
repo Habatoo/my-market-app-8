@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Mono;
@@ -21,6 +22,8 @@ import java.math.BigDecimal;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockOidcLogin;
 
 @WebFluxTest(PaymentsController.class)
 @Import(PaymentExceptionHandler.class)
@@ -44,7 +47,11 @@ public class PaymentsControllerIntegrationTest {
 
         when(paymentsService.pay(any(Mono.class))).thenReturn(Mono.just(response));
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(mockOidcLogin()
+                        .authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                .mutateWith(csrf())
+                .post()
                 .uri("/payments/payment")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
@@ -68,7 +75,11 @@ public class PaymentsControllerIntegrationTest {
 
         when(paymentsService.pay(any(Mono.class))).thenReturn(Mono.just(response));
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(mockOidcLogin()
+                        .authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                .mutateWith(csrf())
+                .post()
                 .uri("/payments/payment")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
@@ -87,7 +98,11 @@ public class PaymentsControllerIntegrationTest {
 
         when(paymentsService.getBalance()).thenReturn(Mono.just(balanceResponse));
 
-        webTestClient.get()
+        webTestClient
+                .mutateWith(mockOidcLogin()
+                        .authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                .mutateWith(csrf())
+                .get()
                 .uri("/payments/balance")
                 .exchange()
                 .expectStatus().isCreated()
@@ -104,7 +119,11 @@ public class PaymentsControllerIntegrationTest {
         PaymentRequest request = new PaymentRequest();
         request.setAmount(BigDecimal.valueOf(100));
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(mockOidcLogin()
+                        .authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                .mutateWith(csrf())
+                .post()
                 .uri("/payments/payment")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)

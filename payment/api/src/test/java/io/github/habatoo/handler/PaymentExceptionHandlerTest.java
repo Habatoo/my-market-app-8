@@ -8,6 +8,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -42,6 +43,26 @@ class PaymentExceptionHandlerTest {
                 .assertNext(response -> {
                     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
                     assertThat(response.getBody()).isEqualTo("Сервис временно недоступен");
+                })
+                .verifyComplete();
+    }
+
+    /**
+     * Тест перехвата ResponseStatusException.
+     * Проверяет, что статус-код извлекается из самого исключения (например, 404 Not Found).
+     */
+    @Test
+    @DisplayName("Перехват ResponseStatusException — возвращает статус из исключения")
+    void testHandleResponseStatusException() {
+        String reason = "Ресурс не найден";
+        ResponseStatusException ex = new ResponseStatusException(HttpStatus.NOT_FOUND, reason);
+
+        Mono<ResponseEntity<String>> result = handler.handleResponseStatusException(ex);
+
+        StepVerifier.create(result)
+                .assertNext(response -> {
+                    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+                    assertThat(response.getBody()).isEqualTo(reason);
                 })
                 .verifyComplete();
     }

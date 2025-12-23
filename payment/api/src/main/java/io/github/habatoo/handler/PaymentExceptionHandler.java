@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 /**
@@ -28,6 +29,18 @@ public class PaymentExceptionHandler {
                         .status(HttpStatus.SERVICE_UNAVAILABLE)
                         .body("Сервис временно недоступен")
         );
+    }
+
+    /**
+     * Базовый класс для 404, 405 и т.д.), чтобы возвращать статус, заложенный в самой ошибке, а не 500.
+     * Логируем как предупреждение, а не как ошибку оплаты
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public Mono<ResponseEntity<String>> handleResponseStatusException(ResponseStatusException ex) {
+        log.warn("Ресурс не найден или недоступен: {}", ex.getReason());
+        return Mono.just(ResponseEntity
+                .status(ex.getStatusCode())
+                .body(ex.getReason()));
     }
 
     /**
