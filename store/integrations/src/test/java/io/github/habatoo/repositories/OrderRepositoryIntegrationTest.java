@@ -3,7 +3,6 @@ package io.github.habatoo.repositories;
 import io.github.habatoo.utils.BaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.autoconfigure.data.r2dbc.DataR2dbcTest;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
@@ -15,7 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * Интеграционные тесты для реактивного OrderRepository.
  */
-@DataR2dbcTest
 @DisplayName("Reactive интеграционные тесты OrderRepository")
 class OrderRepositoryIntegrationTest extends BaseTest {
 

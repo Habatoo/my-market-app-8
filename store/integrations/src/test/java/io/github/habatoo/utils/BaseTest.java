@@ -3,11 +3,16 @@ package io.github.habatoo.utils;
 import io.github.habatoo.entity.*;
 import io.github.habatoo.repositories.*;
 import io.github.habatoo.store.payment.api.PaymentsApi;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextImpl;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -18,10 +23,14 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
+import reactor.util.context.Context;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
+
+import static java.util.Collections.singletonList;
 
 @ActiveProfiles("test")
 @SpringBootTest(
@@ -36,10 +45,14 @@ import java.util.UUID;
                 "spring.security.oauth2.client.provider.test.authorization-uri=http://localhost:8080/auth",
                 "spring.security.oauth2.client.provider.test.token-uri=http://localhost:8080/token",
                 "spring.security.oauth2.client.provider.test.jwk-set-uri=http://localhost:8080/jwks",
-                "spring.security.oauth2.client.provider.test.user-info-uri=http://localhost:8080/userinfo"
+                "spring.security.oauth2.client.provider.test.user-info-uri=http://localhost:8080/userinfo",
+
+                "spring.r2dbc.pool.enabled=false",
+                "spring.r2dbc.pool.validation-query=SELECT 1"
         }
 )
 @Testcontainers
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 public abstract class BaseTest {
 
     @Autowired
@@ -111,28 +124,31 @@ public abstract class BaseTest {
      * Создать и сохранить Cart с указанной суммой.
      */
     protected Mono<Cart> createAndSaveCart(BigDecimal total) {
-        Cart cart = new Cart();
-        cart.setTotal(total);
-        return cartRepository.save(cart);
+        return createAndSaveUser()
+                .flatMap(user -> {
+                    Cart cart = new Cart();
+                    cart.setTotal(total);
+                    cart.setUserId(user.getId());
+                    return cartRepository.save(cart);
+                });
     }
 
     protected Mono<Cart> createAndSaveCart() {
         return createAndSaveCart(BigDecimal.ZERO);
     }
 
-    protected Mono<Cart> createAndSaveCart(BigDecimal total, Long userId) {
-        Cart cart = new Cart();
-        cart.setTotal(total);
-        cart.setUserId(userId);
+    protected Mono<User> createAndSaveUser() {
+        return Mono.defer(() -> {
+            String extId = UUID.randomUUID().toString();
+            String userName = "user_" + extId;
+            User user = createUser(extId, userName);
 
-        return cartRepository.save(cart);
+            return userRepository.save(user);
+        }).subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic());
     }
 
-    protected Mono<User> createAndSaveUser() {
-        User user = new User();
-        user.setUsername("user");
-        user.setExternalId(UUID.randomUUID().toString());
-        user.setRole("USER");
+    protected Mono<User> createAndSaveUserWithId(String extId, String username) {
+        User user = createUser(extId, username);
 
         return userRepository.save(user);
     }
@@ -146,6 +162,7 @@ public abstract class BaseTest {
         item.setDescription("desc_" + title);
         item.setImgPath("img/" + title);
         item.setPrice(price);
+
         return itemRepository.save(item);
     }
 
@@ -158,6 +175,7 @@ public abstract class BaseTest {
         cartItem.setItemId(item.getId());
         cartItem.setCount(count);
         cartItem.setPrice(price);
+
         return cartItemRepository.save(cartItem);
     }
 
@@ -165,10 +183,15 @@ public abstract class BaseTest {
      * Создание и сохранение Order с указанной суммой и датой.
      */
     protected Mono<Order> createAndSaveOrder(BigDecimal totalSum, LocalDateTime dateTime) {
-        Order order = new Order();
-        order.setTotalSum(totalSum);
-        order.setDateTime(dateTime);
-        return orderRepository.save(order);
+        return createAndSaveUser()
+                .flatMap(user -> {
+                    Order order = new Order();
+                    order.setTotalSum(totalSum);
+                    order.setDateTime(dateTime);
+                    order.setUserId(user.getId());
+
+                    return orderRepository.save(order);
+                });
     }
 
     /**
@@ -180,6 +203,7 @@ public abstract class BaseTest {
         orderItem.setItemId(item.getId());
         orderItem.setCount(count);
         orderItem.setPrice(price);
+
         return orderItemRepository.save(orderItem);
     }
 
@@ -189,6 +213,49 @@ public abstract class BaseTest {
                 .then(cartItemRepository.deleteAll())
                 .then(cartRepository.deleteAll())
                 .then(itemRepository.deleteAll())
-                .block();
+                .then(userRepository.deleteAll())
+                .as(StepVerifier::create)
+                .expectNextCount(0)
+                .verifyComplete();
+    }
+
+    /**
+     * Вспомогательный метод для создания корзины под конкретного пользователя
+     */
+    protected Mono<Cart> createAndSaveCart(BigDecimal total, User user) {
+        io.github.habatoo.entity.Cart cart = new io.github.habatoo.entity.Cart();
+        cart.setUserId(user.getId());
+        cart.setTotal(total);
+
+        return cartRepository.save(cart);
+    }
+
+    /**
+     * Вспомогательный метод для создания контекста безопасности с JWT.
+     * Сервис ожидает наличие 'sub' (externalId) и 'preferred_username'.
+     */
+    protected Context createSecurityContext(String externalId, String username) {
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .claim("sub", externalId)
+                .claim("preferred_username", username)
+                .build();
+
+        JwtAuthenticationToken auth = new JwtAuthenticationToken(jwt,
+                singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+        auth.setAuthenticated(true);
+
+        SecurityContext securityContext = new SecurityContextImpl(auth);
+
+        return Context.of(SecurityContext.class, Mono.just(securityContext));
+    }
+
+    private User createUser(String extId, String username) {
+        User user = new User();
+        user.setExternalId(extId);
+        user.setUsername(username);
+        user.setRole("USER");
+
+        return user;
     }
 }

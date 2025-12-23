@@ -5,10 +5,7 @@ import io.github.habatoo.entity.Order;
 import io.github.habatoo.utils.BaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.data.r2dbc.AutoConfigureDataR2dbc;
-import org.springframework.boot.test.context.SpringBootTest;
 import reactor.test.StepVerifier;
 
 import java.math.BigDecimal;
@@ -17,9 +14,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
-@AutoConfigureDataR2dbc
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @DisplayName("Интеграционный тест OrderServiceImpl — работа с заказами")
 class OrderServiceImplSpringBootIntegrationTest extends BaseTest {
 
@@ -32,16 +26,8 @@ class OrderServiceImplSpringBootIntegrationTest extends BaseTest {
     @Test
     @DisplayName("Получение всех заказов — список OrderDto корректен (reactive)")
     void getOrdersListTest() {
-
-        Order order1 = new Order();
-        order1.setTotalSum(BigDecimal.valueOf(100));
-        order1.setDateTime(LocalDateTime.now().minusDays(1));
-        orderRepository.save(order1).block();
-
-        Order order2 = new Order();
-        order2.setTotalSum(BigDecimal.valueOf(200));
-        order2.setDateTime(LocalDateTime.now());
-        orderRepository.save(order2).block();
+        createAndSaveOrder(BigDecimal.valueOf(100), LocalDateTime.now().minusDays(1)).block();
+        createAndSaveOrder(BigDecimal.valueOf(200), LocalDateTime.now()).block();
 
         List<OrderDto> dtos = orderService.getOrders()
                 .collectList()
@@ -59,11 +45,7 @@ class OrderServiceImplSpringBootIntegrationTest extends BaseTest {
     @Test
     @DisplayName("Получение заказа по id — возвращается OrderDto (reactive)")
     void getOrderByIdTest() {
-
-        Order order = new Order();
-        order.setTotalSum(BigDecimal.valueOf(555));
-        order.setDateTime(LocalDateTime.now());
-        order = orderRepository.save(order).block();
+        Order order = createAndSaveOrder(BigDecimal.valueOf(555), LocalDateTime.now()).block();
 
         assertNotNull(order);
         assertNotNull(order.getId());

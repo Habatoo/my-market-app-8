@@ -4,7 +4,6 @@ import io.github.habatoo.entity.CartItem;
 import io.github.habatoo.utils.BaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.autoconfigure.data.r2dbc.DataR2dbcTest;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -17,7 +16,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Интеграционные тесты для CartItemRepository.
  * Проверяют сохранение, поиск, удаление позиций корзины, а также обработку невалидных связей.
  */
-@DataR2dbcTest
 @DisplayName("Интеграционные тесты CartItemRepository (R2DBC)")
 class CartItemRepositoryIntegrationTest extends BaseTest {
 

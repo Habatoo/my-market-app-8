@@ -3,18 +3,18 @@ package io.github.habatoo.mappers;
 import io.github.habatoo.dto.response.OrderItemDto;
 import io.github.habatoo.entity.Item;
 import io.github.habatoo.entity.OrderItem;
+import io.github.habatoo.utils.BaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 
 import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
 @DisplayName("Интеграционный тест OrderItemMapper — маппер")
-class OrderItemMapperIntegrationTest {
+class OrderItemMapperIntegrationTest extends BaseTest {
+
     @Autowired
     private OrderItemMapper orderItemMapper;
 

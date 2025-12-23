@@ -6,7 +6,6 @@ import io.github.habatoo.entity.OrderItem;
 import io.github.habatoo.utils.BaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.autoconfigure.data.r2dbc.DataR2dbcTest;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -15,7 +14,6 @@ import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataR2dbcTest
 @DisplayName("Reactive интеграционные тесты OrderItem - Order - Item связей")
 class OrderItemRepositoryIntegrationTest extends BaseTest {
 
