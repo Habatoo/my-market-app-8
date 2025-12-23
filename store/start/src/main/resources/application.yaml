@@ -1,8 +1,6 @@
 spring:
   application:
     name: my-market-app-8
-  profiles:
-    active: dev
   web:
     cors:
       path-pattern: "/**"
@@ -18,27 +16,6 @@ spring:
       host: ${SPRING_REDIS_HOST:localhost}
       port: ${SPRING_REDIS_PORT:6379}
       timeout: 10s
-
-  security:
-    oauth2:
-      client:
-        registration:
-          keycloak:
-            client-id: my-market-app
-            client-secret: 90bd600c-7781-4435-961e-1f5139265f7c
-            scope: openid, profile, email, roles
-            authorization-grant-type: authorization_code
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
-        provider:
-          keycloak:
-            issuer-uri: http://localhost:8082/realms/my-market-realm
-            authorization-uri: http://localhost:8082/realms/my-market-realm/protocol/openid-connect/auth
-            token-uri: http://localhost:8082/realms/my-market-realm/protocol/openid-connect/token
-            jwk-set-uri: http://localhost:8082/realms/my-market-realm/protocol/openid-connect/certs
-            user-info-uri: http://localhost:8082/realms/my-market-realm/protocol/openid-connect/userinfo
-      resourceserver:
-        jwt:
-          jwk-set-uri: http://localhost:8082/realms/my-market-realm/protocol/openid-connect/certs
 
 application:
   redis-ttl-minutes: ${SPRING_REDIS_TTL:1}
