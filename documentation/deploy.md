@@ -25,7 +25,10 @@ SPRING_REDIS_TTL=1
 
 После успешной сборки образов и запуск с помощью
 ```bash
-docker compose build
+docker builder prune -f
+
+docker buildx bake
+
 docker compose up -d
 ```
 - Проверка запущенных контейнеров
@@ -37,7 +40,7 @@ docker compose ps
 - Управление<br>
   Для остановки всех сервисов:
 ```bash
-docker compose down
+docker-compose down -v
 ```
   Для пересборки всех сервисов:
 ```bash

@@ -149,7 +149,7 @@ class ItemServiceImplTest {
         List<Long> actualIds = resp.itemsRows().stream()
                 .flatMap(List::stream)
                 .map(ItemDto::id)
-                .filter(id -> id != -1) // Исключаем пустые заглушки из splitByRows
+                .filter(id -> id != -1)
                 .toList();
 
         List<Long> expectedIds = expectedPage.stream().map(Item::getId).toList();

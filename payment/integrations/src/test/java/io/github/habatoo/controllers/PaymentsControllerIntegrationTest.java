@@ -45,7 +45,7 @@ public class PaymentsControllerIntegrationTest {
         PaymentResponse response = new PaymentResponse();
         response.setStatus(PaymentResponse.StatusEnum.SUCCESS);
 
-        when(paymentsService.pay(any(Mono.class))).thenReturn(Mono.just(response));
+        when(paymentsService.pay(any())).thenReturn(Mono.just(response));
 
         webTestClient
                 .mutateWith(mockOidcLogin()
@@ -59,9 +59,7 @@ public class PaymentsControllerIntegrationTest {
                 .expectStatus().isCreated()
                 .expectHeader().contentType(MediaType.APPLICATION_JSON)
                 .expectBody(PaymentResponse.class)
-                .value(body -> {
-                    org.assertj.core.api.Assertions.assertThat(body.getStatus()).isEqualTo(PaymentResponse.StatusEnum.SUCCESS);
-                });
+                .value(body -> assertThat(body.getStatus()).isEqualTo(PaymentResponse.StatusEnum.SUCCESS));
     }
 
     @Test
@@ -73,7 +71,7 @@ public class PaymentsControllerIntegrationTest {
         PaymentResponse response = new PaymentResponse();
         response.setStatus(PaymentResponse.StatusEnum.FAILED);
 
-        when(paymentsService.pay(any(Mono.class))).thenReturn(Mono.just(response));
+        when(paymentsService.pay(any())).thenReturn(Mono.just(response));
 
         webTestClient
                 .mutateWith(mockOidcLogin()
@@ -113,7 +111,7 @@ public class PaymentsControllerIntegrationTest {
     @Test
     @DisplayName("POST /payments/payment — сервис недоступен, 503")
     void testCreatePaymentServiceUnavailable() {
-        when(paymentsService.pay(any(Mono.class)))
+        when(paymentsService.pay(any()))
                 .thenReturn(Mono.error(new PaymentServiceUnavailableException()));
 
         PaymentRequest request = new PaymentRequest();
