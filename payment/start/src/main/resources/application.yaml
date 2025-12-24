@@ -5,8 +5,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: http://localhost:8082/realms/my-market-realm/protocol/openid-connect/certs
-          issuer-uri: http://localhost:8082/realms/my-market-realm
+          jwk-set-uri: ${KEYCLOAK_INTERNAL_URL:http://localhost:8082/realms/my-market-realm}/protocol/openid-connect/certs
 
 server:
   port: 8081

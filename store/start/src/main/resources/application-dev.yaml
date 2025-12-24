@@ -1,8 +1,8 @@
 spring:
   r2dbc:
-    url: ${SPRING_DATASOURCE_URL:r2dbc:postgresql://${SPRING_DATASOURCE_HOST:localhost}:${SPRING_DATASOURCE_DB_PORT:5432}/${SPRING_DATASOURCE_DB_NAME:shop_db}}
-    username: ${SPRING_DATASOURCE_DB_USERNAME:shop_admin}
-    password: ${SPRING_DATASOURCE_DB_PASSWORD:shop_password}
+    url: ${SPRING_R2DBC_URL:r2dbc:postgresql://localhost:5432/shop_db}
+    username: ${SPRING_R2DBC_USERNAME:shop_admin}
+    password: ${SPRING_R2DBC_PASSWORD:shop_password}
     pool:
       enabled: true
       initial-size: 10
@@ -13,9 +13,9 @@ spring:
 
   liquibase:
     enabled: true
-    url: jdbc:postgresql://${SPRING_DATASOURCE_HOST:localhost}:${SPRING_DATASOURCE_DB_PORT:5432}/${SPRING_DATASOURCE_DB_NAME:shop_db}
-    user: ${SPRING_DATASOURCE_DB_USERNAME:shop_admin}
-    password: ${SPRING_DATASOURCE_DB_PASSWORD:shop_password}
+    url: ${SPRING_LIQUIBASE_URL:jdbc:postgresql://localhost:5432/shop_db}
+    user: ${SPRING_LIQUIBASE_USER:shop_admin}
+    password: ${SPRING_LIQUIBASE_PASSWORD:shop_password}
     change-log: classpath:db/changelog/db.changelog-master.yaml
     contexts: dev
 
@@ -31,11 +31,8 @@ spring:
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
         provider:
           keycloak:
-            issuer-uri: http://localhost:8082/realms/my-market-realm
-            authorization-uri: http://localhost:8082/realms/my-market-realm/protocol/openid-connect/auth
-            token-uri: http://localhost:8082/realms/my-market-realm/protocol/openid-connect/token
-            jwk-set-uri: http://localhost:8082/realms/my-market-realm/protocol/openid-connect/certs
-            user-info-uri: http://localhost:8082/realms/my-market-realm/protocol/openid-connect/userinfo
+            issuer-uri: ${KEYCLOAK_EXTERNAL_URL:http://localhost:8082/realms/my-market-realm}
+            user-name-attribute: sub
       resourceserver:
         jwt:
-          jwk-set-uri: http://localhost:8082/realms/my-market-realm/protocol/openid-connect/certs
+          issuer-uri: ${KEYCLOAK_INTERNAL_URL:http://localhost:8082/realms/my-market-realm}

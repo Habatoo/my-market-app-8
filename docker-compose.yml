@@ -1,36 +1,41 @@
 services:
-
   store:
     container_name: store
+    image: my-market/store:latest
     build:
       context: .
       dockerfile: store/Dockerfile
     env_file: ./env/.env
     depends_on:
-      - payment
-      - db
-      - redis
+      keycloak:
+        condition: service_started
+      payment:
+        condition: service_started
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
     ports:
       - "8080:8080"
     restart: unless-stopped
     networks:
       - shop-network
-    volumes:
-      - gradle_cache:/home/gradle/.gradle
 
   payment:
     container_name: payment
+    image: my-market/payment:latest
     build:
       context: .
       dockerfile: payment/Dockerfile
     env_file: ./env/.env
+    depends_on:
+      keycloak:
+        condition: service_started
     ports:
       - "8081:8081"
     restart: unless-stopped
     networks:
       - shop-network
-    volumes:
-      - gradle_cache:/home/gradle/.gradle
 
   db:
     image: postgres:17-alpine
@@ -39,8 +44,27 @@ services:
     env_file: ./env/.env
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop_admin -d shop_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     volumes:
       - shop_db:/var/lib/postgresql/data
+    networks:
+      - shop-network
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3.1
+    container_name: keycloak
+    command: start-dev --import-realm --http-port=8082 --http-enabled=true
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./env:/opt/keycloak/data/import
     networks:
       - shop-network
 

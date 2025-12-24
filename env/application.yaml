@@ -22,24 +22,36 @@ spring:
 
   data:
     redis:
-      host: ${SPRING_REDIS_HOST:localhost}
-      port: ${SPRING_REDIS_PORT:6379}
-      timeout: 10s
+      host: ${SPRING_REDIS_HOST}
+      port: ${SPRING_REDIS_PORT}
 
-  web:
-    cors:
-      path-pattern: "/**"
-      allowed-origin-patterns:
-        - "http://localhost"
-        - "http://127.0.0.1"
-      allowed-methods: [ GET, POST, PUT, DELETE, OPTIONS ]
-      allowed-headers: "*"
-      allow-credentials: true
-      max-age: 3600
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            client-id: my-market-app
+            client-secret: ${KEYCLOAK_SECRET}
+            scope: openid, profile, email, roles
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          keycloak:
+            issuer-uri: ${KEYCLOAK_INTERNAL_URL}
 
-application:
-  redis-ttl-minutes: ${SPRING_REDIS_TTL:1}
-  balance: 1000
+            authorization-uri: ${KEYCLOAK_EXTERNAL_URL}/protocol/openid-connect/auth
+            token-uri: ${KEYCLOAK_INTERNAL_URL}/protocol/openid-connect/token
+            jwk-set-uri: ${KEYCLOAK_INTERNAL_URL}/protocol/openid-connect/certs
+            user-info-uri: ${KEYCLOAK_INTERNAL_URL}/protocol/openid-connect/userinfo
+            user-name-attribute: sub
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_INTERNAL_URL}/protocol/openid-connect/certs
+          issuer-uri: ${KEYCLOAK_EXTERNAL_URL}
 
 payment:
-  url: http://payment:8080
+  url: http://${PAYMENT_SERVICE_HOST}:${SPRING_DATASOURCE_PAYMENT_PORT}
+
+application:
+  redis-ttl-minutes: ${SPRING_REDIS_TTL}
+  balance: 1000
