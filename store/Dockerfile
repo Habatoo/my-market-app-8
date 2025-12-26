@@ -29,6 +29,6 @@ RUN --mount=type=cache,target=/home/gradle/.gradle \
 FROM amazoncorretto:21-alpine3.20-jdk
 WORKDIR /app
 COPY --from=build /app/store/start/build/libs/*.jar app.jar
-COPY --from=build /app/env/application.yaml /app/application.yaml
+
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -1,32 +1,60 @@
 {
   "realm": "my-market-realm",
   "enabled": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
   "clients": [
     {
       "clientId": "my-market-app",
+      "name": "Market Store Frontend",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
       "secret": "90bd600c-7781-4435-961e-1f5139265f7c",
       "redirectUris": [
-        "http://localhost:8080/login/oauth2/code/keycloak"
+        "http://localhost:8080/login/oauth2/code/keycloak",
+        "http://localhost:8080/*"
       ],
-      "attributes": {
-        "post.logout.redirect.uris": "http://localhost:8080/"
-      },
       "webOrigins": [
-        "http://localhost:8080"
+        "http://localhost:8080",
+        "+"
       ],
       "publicClient": false,
       "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String"
+          }
+        }
+      ],
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": true
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": true,
+      "fullScopeAllowed": true,
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:8080/"
+      }
     }
   ],
   "roles": {
     "realm": [
       {
         "name": "USER",
-        "description": "Базовая роль пользователя"
+        "description": "Покупатель"
+      },
+      {
+        "name": "ADMIN",
+        "description": "Администратор"
       }
     ]
   },

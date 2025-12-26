@@ -8,9 +8,7 @@ services:
     env_file: ./env/.env
     depends_on:
       keycloak:
-        condition: service_started
-      payment:
-        condition: service_started
+        condition: service_healthy
       db:
         condition: service_healthy
       redis:
@@ -20,6 +18,9 @@ services:
     restart: unless-stopped
     networks:
       - shop-network
+    environment:
+      - KEYCLOAK_INTERNAL_URL=http://keycloak:8082/realms/my-market-realm
+      - KEYCLOAK_EXTERNAL_URL=http://localhost:8082/realms/my-market-realm
 
   payment:
     container_name: payment
@@ -30,12 +31,15 @@ services:
     env_file: ./env/.env
     depends_on:
       keycloak:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "8081:8081"
     restart: unless-stopped
     networks:
       - shop-network
+    environment:
+      - KEYCLOAK_INTERNAL_URL=http://keycloak:8082/realms/my-market-realm
+      - KEYCLOAK_EXTERNAL_URL=http://localhost:8082/realms/my-market-realm
 
   db:
     image: postgres:17-alpine
@@ -57,16 +61,27 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.3.1
     container_name: keycloak
-    command: start-dev --import-realm --http-port=8082 --http-enabled=true
+    command: start-dev --import-realm --http-port=8082 --http-enabled=true --hostname-strict=false
     environment:
+      KC_HEALTH_ENABLED: true
+      KC_METRICS_ENABLED: true
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 8082
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
     ports:
       - "8082:8082"
     volumes:
       - ./env:/opt/keycloak/data/import
     networks:
       - shop-network
+    healthcheck:
+      test: [ "CMD-SHELL", "echo > /dev/tcp/localhost/8082" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7.2.4-alpine
