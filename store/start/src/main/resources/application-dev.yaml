@@ -25,14 +25,13 @@ spring:
         registration:
           keycloak:
             client-id: my-market-app
-            client-secret: 90bd600c-7781-4435-961e-1f5139265f7c
+            client-secret: ${KEYCLOAK_SECRET:90bd600c-7781-4435-961e-1f5139265f7c}
             scope: openid, profile, email, roles
             authorization-grant-type: authorization_code
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
         provider:
           keycloak:
-            issuer-uri: ${KEYCLOAK_EXTERNAL_URL:http://localhost:8082/realms/my-market-realm}
-            user-name-attribute: sub
+            issuer-uri: ${KEYCLOAK_INTERNAL_URL:http://localhost:8082/realms/my-market-realm}
       resourceserver:
         jwt:
           issuer-uri: ${KEYCLOAK_INTERNAL_URL:http://localhost:8082/realms/my-market-realm}
