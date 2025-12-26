@@ -50,15 +50,15 @@ class SecurityConfigurationsIntegrationTest extends BaseTest {
     }
 
     @Test
-    @DisplayName("POST запрос должен работать без CSRF токена")
-    void postRequestShouldWorkWithoutCsrfTest() {
+    @DisplayName("POST запрос не должен работать без CSRF токена")
+    void postRequestShouldNotWorkWithoutCsrfTest() {
         webTestClient.mutateWith(mockJwt())
                 .post()
                 .uri("/payments/payment")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("{}")
                 .exchange()
-                .expectStatus().isBadRequest();
+                .expectStatus().isForbidden();
     }
 
     @Test
