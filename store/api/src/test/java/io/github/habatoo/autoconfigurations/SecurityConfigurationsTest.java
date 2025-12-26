@@ -7,6 +7,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.client.registration.ReactiveClientRegistrationRepository;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.authentication.logout.LogoutWebFilter;
@@ -30,6 +31,10 @@ class SecurityConfigurationsTest {
             .withBean(
                     ReactiveClientRegistrationRepository.class,
                     () -> mock(ReactiveClientRegistrationRepository.class)
+            )
+            .withBean(
+                    ReactiveJwtDecoder.class,
+                    () -> mock(ReactiveJwtDecoder.class)
             );
 
     @Test
