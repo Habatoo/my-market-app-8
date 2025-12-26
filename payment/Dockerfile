@@ -9,7 +9,6 @@ COPY build.gradle .
 COPY bom/build.gradle bom/
 
 COPY report/build.gradle* report/
-COPY integration-tests/build.gradle* integration-tests/
 COPY store/api/build.gradle* store/api/
 COPY store/core/build.gradle* store/core/
 COPY store/start/build.gradle* store/start/

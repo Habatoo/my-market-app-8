@@ -32,8 +32,6 @@ my-market-app/
 │   ├── start/                # Application - @SpringBootApplication -jar
 │   ├── Dockerfile            # Конфигурация Docker для payment
 │   └── integrations/         # Локальные интеграции payment
-├── integration-tests/        # Cross-service ТЕСТЫ store + payment
-│   └── build.gradle
 ├── report/                   # Общий Jacoco coverage aggregator
 │   └── build.gradle
 ├── documentation/
