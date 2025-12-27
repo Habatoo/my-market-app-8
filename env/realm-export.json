@@ -10,12 +10,15 @@
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
       "secret": "90bd600c-7781-4435-961e-1f5139265f7c",
+      "rootUrl": "https://unmanned-steelless-eliana.ngrok-free.dev",
+      "baseUrl": "/",
       "redirectUris": [
-        "http://localhost:8080/login/oauth2/code/keycloak",
-        "http://localhost:8080/*"
+        "https://unmanned-steelless-eliana.ngrok-free.dev/login/oauth2/code/keycloak",
+        "https://unmanned-steelless-eliana.ngrok-free.dev/*",
+        "http://unmanned-steelless-eliana.ngrok-free.dev/*"
       ],
       "webOrigins": [
-        "http://localhost:8080",
+        "https://unmanned-steelless-eliana.ngrok-free.dev",
         "+"
       ],
       "publicClient": false,
@@ -42,7 +45,7 @@
       "authorizationServicesEnabled": true,
       "fullScopeAllowed": true,
       "attributes": {
-        "post.logout.redirect.uris": "http://localhost:8080/"
+        "post.logout.redirect.uris": "https://unmanned-steelless-eliana.ngrok-free.dev/"
       }
     }
   ],

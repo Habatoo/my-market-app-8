@@ -6,6 +6,11 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${KEYCLOAK_INTERNAL_URL:http://localhost:8082/realms/my-market-realm}/protocol/openid-connect/certs
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+      timeout: 10s
 
 server:
   port: 8081

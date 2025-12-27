@@ -5,8 +5,10 @@ info:
   description: API сервиса платежей
 
 servers:
+  - url: http://payment:8081
+    description: Внутренняя сеть Docker (service name)
   - url: http://localhost:8081
-    description: Локальный сервер разработки
+    description: Локальная разработка (вне Docker)
 
 paths:
   /payments/balance:
