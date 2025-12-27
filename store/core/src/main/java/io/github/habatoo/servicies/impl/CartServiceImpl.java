@@ -88,10 +88,15 @@ public class CartServiceImpl implements CartService {
      */
     @Override
     public Mono<Boolean> canProcessPayment(PaymentRequest request) {
-        return paymentsApi.getWalletBalance()
-                .map(BalanceResponse::getBalance)
-                .map(balance -> balance.compareTo(request.getAmount()) >= 0)
-                .onErrorReturn(false);
+        return ReactiveSecurityContextHolder.getContext()
+                .map(SecurityContext::getAuthentication)
+                .flatMap(auth -> {
+                    return paymentsApi.getWalletBalance()
+                            .map(BalanceResponse::getBalance)
+                            .map(balance -> balance.compareTo(request.getAmount()) >= 0)
+                            .doOnError(e -> log.error("ОШИБКА ВЫЗОВА PAYMENT-SERVICE: {}", e.getMessage()))
+                            .onErrorReturn(false);
+                });
     }
 
     private Mono<Cart> getCurrentCart() {

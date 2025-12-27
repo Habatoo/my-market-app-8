@@ -22,7 +22,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
@@ -32,8 +34,10 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+import reactor.util.context.Context;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.mockito.Mockito.*;
 
@@ -174,7 +178,11 @@ class CartServiceImplTest {
     @DisplayName("Проверка оплаты: успех при достаточном балансе")
     void canProcessPaymentSuccessTest() {
         mockPaymentApi(BigDecimal.valueOf(300));
-        StepVerifier.create(service.canProcessPayment(new PaymentRequest().amount(BigDecimal.valueOf(200))))
+
+        Mono<Boolean> result = service.canProcessPayment(new PaymentRequest().amount(BigDecimal.valueOf(200)))
+                .contextWrite(oauthContext());
+
+        StepVerifier.create(result)
                 .expectNext(true)
                 .verifyComplete();
     }
@@ -186,7 +194,11 @@ class CartServiceImplTest {
     @DisplayName("Проверка оплаты: отказ при недостаточном балансе")
     void canProcessPaymentWhenBalanceNotEnoughReturnFalseTest() {
         mockPaymentApi(BigDecimal.valueOf(100));
-        StepVerifier.create(service.canProcessPayment(new PaymentRequest().amount(BigDecimal.valueOf(300))))
+
+        Mono<Boolean> result = service.canProcessPayment(new PaymentRequest().amount(BigDecimal.valueOf(300)))
+                .contextWrite(oauthContext());
+
+        StepVerifier.create(result)
                 .expectNext(false)
                 .verifyComplete();
     }
@@ -198,7 +210,11 @@ class CartServiceImplTest {
     @DisplayName("Проверка оплаты: успех при балансе равном сумме")
     void canProcessPaymentWhenBalanceEqualsAmountReturnTrueTest() {
         mockPaymentApi(BigDecimal.valueOf(200));
-        StepVerifier.create(service.canProcessPayment(new PaymentRequest().amount(BigDecimal.valueOf(200))))
+
+        Mono<Boolean> result = service.canProcessPayment(new PaymentRequest().amount(BigDecimal.valueOf(200)))
+                .contextWrite(oauthContext());
+
+        StepVerifier.create(result)
                 .expectNext(true)
                 .verifyComplete();
     }
@@ -209,8 +225,12 @@ class CartServiceImplTest {
     @Test
     @DisplayName("Проверка оплаты: обработка ошибки API")
     void canProcessPaymentApiErrorTest() {
-        when(paymentsApi.getWalletBalance()).thenReturn(Mono.error(new RuntimeException()));
-        StepVerifier.create(service.canProcessPayment(new PaymentRequest().amount(BigDecimal.valueOf(100))))
+        when(paymentsApi.getWalletBalance()).thenReturn(Mono.error(new RuntimeException("API Down")));
+
+        Mono<Boolean> result = service.canProcessPayment(new PaymentRequest().amount(BigDecimal.valueOf(100)))
+                .contextWrite(oauthContext());
+
+        StepVerifier.create(result)
                 .expectNext(false)
                 .verifyComplete();
     }
@@ -360,6 +380,15 @@ class CartServiceImplTest {
     private void mockPaymentApi(BigDecimal balance) {
         BalanceResponse res = new BalanceResponse().balance(balance);
         when(paymentsApi.getWalletBalance()).thenReturn(Mono.just(res));
+    }
+
+    /**
+     * Вспомогательный метод для имитации авторизованного пользователя в реактивном потоке
+     */
+    private Context oauthContext() {
+        var auth = new UsernamePasswordAuthenticationToken(
+                "user", "password", List.of(new SimpleGrantedAuthority("ROLE_USER")));
+        return ReactiveSecurityContextHolder.withAuthentication(auth);
     }
 
     private ChangeNumberOfItemsRequestDto createRequest(Long id, Action action) {

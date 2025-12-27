@@ -6,18 +6,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.http.HttpHeaders;
 import org.springframework.security.config.annotation.method.configuration.EnableReactiveMethodSecurity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.ReactiveSecurityContextHolder;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
-import org.springframework.security.oauth2.core.oidc.user.OidcUser;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.web.reactive.function.client.ClientRequest;
-import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
+import org.springframework.security.oauth2.client.ReactiveOAuth2AuthorizedClientManager;
+import org.springframework.security.oauth2.client.ReactiveOAuth2AuthorizedClientProvider;
+import org.springframework.security.oauth2.client.ReactiveOAuth2AuthorizedClientProviderBuilder;
+import org.springframework.security.oauth2.client.registration.ReactiveClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.DefaultReactiveOAuth2AuthorizedClientManager;
+import org.springframework.security.oauth2.client.web.reactive.function.client.ServerOAuth2AuthorizedClientExchangeFilterFunction;
+import org.springframework.security.oauth2.client.web.server.ServerOAuth2AuthorizedClientRepository;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
 @AutoConfiguration
 @RequiredArgsConstructor
@@ -33,43 +30,41 @@ public class PaymentClientConfiguration {
     }
 
     @Bean
-    public ApiClient apiClient(WebClient.Builder webClientBuilder) {
-        WebClient webClient = webClientBuilder
+    public ApiClient apiClient(
+            WebClient.Builder builder,
+            ReactiveOAuth2AuthorizedClientManager clientManager
+    ) {
+        ServerOAuth2AuthorizedClientExchangeFilterFunction oauth =
+                new ServerOAuth2AuthorizedClientExchangeFilterFunction(clientManager);
+
+        oauth.setDefaultOAuth2AuthorizedClient(true);
+        oauth.setDefaultClientRegistrationId("keycloak");
+
+        WebClient webClient = builder
                 .baseUrl(paymentsServiceUrl)
-                .filter(tokenRelayFilter())
+                .filter(oauth)
                 .build();
 
         return new ApiClient(webClient);
     }
 
-    private ExchangeFilterFunction tokenRelayFilter() {
-        return (request, next) -> ReactiveSecurityContextHolder.getContext()
-                .map(SecurityContext::getAuthentication)
-                .flatMap(auth -> {
-                    String token = getToken(auth);
+    @Bean
+    public ReactiveOAuth2AuthorizedClientManager authorizedClientManager(
+            ReactiveClientRegistrationRepository clientRegistrationRepository,
+            ServerOAuth2AuthorizedClientRepository authorizedClientRepository) {
 
-                    if (token != null) {
-                        return Mono.just(ClientRequest.from(request)
-                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                                .build());
-                    }
-                    return Mono.just(request);
-                })
-                .flatMap(next::exchange);
-    }
+        ReactiveOAuth2AuthorizedClientProvider authorizedClientProvider =
+                ReactiveOAuth2AuthorizedClientProviderBuilder.builder()
+                        .authorizationCode()
+                        .refreshToken()
+                        .clientCredentials()
+                        .build();
 
-    private String getToken(Authentication auth) {
-        String token = null;
+        DefaultReactiveOAuth2AuthorizedClientManager authorizedClientManager =
+                new DefaultReactiveOAuth2AuthorizedClientManager(
+                        clientRegistrationRepository, authorizedClientRepository);
+        authorizedClientManager.setAuthorizedClientProvider(authorizedClientProvider);
 
-        if (auth instanceof JwtAuthenticationToken jwtAuth) {
-            token = jwtAuth.getToken().getTokenValue();
-        } else if (auth instanceof OAuth2AuthenticationToken oauth) {
-            if (oauth.getPrincipal() instanceof OidcUser oidcUser) {
-                token = oidcUser.getIdToken().getTokenValue();
-            }
-        }
-
-        return token;
+        return authorizedClientManager;
     }
 }
-

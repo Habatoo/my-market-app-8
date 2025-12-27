@@ -155,8 +155,6 @@ public class CartControllerCashedTest {
         webTestClient.get()
                 .uri("/cart/items")
                 .exchange()
-                // Если в SecurityConfig стоит .oauth2Login(), может быть .is3xxRedirection()
-                // Но для юнит-теста контроллера чаще проверяем .isUnauthorized()
                 .expectStatus().isUnauthorized();
 
         verifyNoInteractions(cartService);
@@ -195,7 +193,7 @@ public class CartControllerCashedTest {
     void changeNumberOfItemsNoCsrfTest() {
         ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder().build();
 
-        webTestClient.post() // НЕ добавляем .mutateWith(csrf())
+        webTestClient.post()
                 .uri("/cart/items")
                 .bodyValue(req)
                 .exchange()
