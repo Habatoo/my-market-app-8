@@ -7,6 +7,7 @@ import io.github.habatoo.servicies.ItemService;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -53,12 +54,12 @@ public class ItemController {
                     log.debug("Получено {} строк товаров, paging={}",
                             items.itemsRows().size(), items.paging());
 
-                    model.addAttribute("cart", items.cart());
                     model.addAttribute(ITEMS, items.itemsRows());
                     model.addAttribute("search", req.getSearch() == null ? "" : req.getSearch());
                     model.addAttribute("sort", req.getSort());
                     model.addAttribute("paging", items.paging());
                     model.addAttribute("itemCounts", items.itemCounts());
+                    model.addAttribute("isAuth", items.isAuth());
 
                     return ITEMS;
                 });
@@ -72,6 +73,7 @@ public class ItemController {
      * @return redirect на витрину товаров с актуальными фильтрами
      */
     @PostMapping
+    @PreAuthorize("isAuthenticated()")
     public Mono<String> changeNumberOfItems(
             @ModelAttribute ChangeNumberOfItemsRequestDto req,
             BindingResult bindingResult) {
@@ -111,6 +113,7 @@ public class ItemController {
                 .doOnNext(item -> {
                     model.addAttribute(ITEM, item.item());
                     model.addAttribute("cartCount", item.cartCount());
+                    model.addAttribute("isAuth", item.isAuth());
                 })
                 .thenReturn(ITEM);
     }
@@ -125,6 +128,7 @@ public class ItemController {
      * @return имя шаблона отдельного товара
      */
     @PostMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
     public Mono<String> changeItemFromItemPage(
             @PathVariable("id") @Positive Long id,
             @ModelAttribute ChangeNumberOfItemsRequestDto req,
@@ -133,8 +137,11 @@ public class ItemController {
         req.setId(id);
 
         return itemService.changeNumberOfItemsFromPage(req)
-                .doOnNext(item -> model.addAttribute(ITEM, item.item()))
-                .doOnNext(item -> model.addAttribute("cartCount", item.cartCount()))
+                .doOnNext(item -> {
+                    model.addAttribute(ITEM, item.item());
+                    model.addAttribute("cartCount", item.cartCount());
+                    model.addAttribute("isAuth", item.isAuth());
+                })
                 .thenReturn(ITEM);
     }
 }

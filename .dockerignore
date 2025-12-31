@@ -1,0 +1,10 @@
+.gradle
+**/build
+.idea
+*.log
+build
+out
+.git
+.gitignore
+*.md
+docker-compose.override.yml

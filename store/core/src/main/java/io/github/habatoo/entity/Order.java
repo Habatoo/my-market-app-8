@@ -14,7 +14,8 @@ import java.time.LocalDateTime;
 
 /**
  * Заказ пользователя в интернет-магазине.
- * Хранит идентификатор, список заказанных товаров, итоговую сумму заказа и дату оформления.
+ * Хранит идентификатор, список заказанных товаров, итоговую сумму заказа и дату оформления
+ * и идентификатор пользователя.
  */
 @Table("orders")
 @Data
@@ -24,6 +25,9 @@ public class Order {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column("user_id")
+    private Long userId;
 
     @Column("total_sum")
     private BigDecimal totalSum;

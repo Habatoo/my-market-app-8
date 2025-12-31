@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
@@ -41,6 +42,7 @@ public class PaymentsController implements PaymentsApi {
      * @return реактивный publisher с HTTP-ответом и результатом выполнения платежа
      */
     @Override
+    @PreAuthorize("isAuthenticated()")
     public Mono<ResponseEntity<PaymentResponse>> createPayment(
             String contentType,
             Mono<PaymentRequest> paymentRequest,
@@ -68,6 +70,7 @@ public class PaymentsController implements PaymentsApi {
      * @return реактивный publisher с HTTP-ответом, содержащим информацию о балансе
      */
     @Override
+    @PreAuthorize("isAuthenticated()")
     public Mono<ResponseEntity<BalanceResponse>> getWalletBalance(
             ServerWebExchange exchange) {
         log.info("GET /payments/balance — запрос баланса");

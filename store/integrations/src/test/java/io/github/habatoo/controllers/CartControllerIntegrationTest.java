@@ -7,13 +7,16 @@ import io.github.habatoo.dto.response.CartItemDto;
 import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.handlers.GlobalExceptionHandler;
 import io.github.habatoo.servicies.CartService;
+import io.github.habatoo.utils.BaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.thymeleaf.ThymeleafAutoConfiguration;
+import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Mono;
@@ -25,16 +28,18 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.AssertionsKt.assertNotNull;
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockOidcLogin;
 
 /**
- * Интеграционный тест для CartController с использованием @WebFluxTest.
+ * Интеграционный тест для CartController с использованием @SpringBootTest.
  * Проверяет все основные и граничные сценарии изменения количества товаров в корзине через контроллер.
  */
-@WebFluxTest(CartController.class)
+@AutoConfigureWebTestClient
 @Import(GlobalExceptionHandler.class)
 @ImportAutoConfiguration(ThymeleafAutoConfiguration.class)
-@DisplayName("Интеграционный WebFlux тест CartController")
-class CartControllerIntegrationTest {
+@DisplayName("Интеграционный SpringBootTest тест CartController")
+class CartControllerIntegrationTest extends BaseTest {
 
     @Autowired
     private WebTestClient webTestClient;
@@ -52,7 +57,11 @@ class CartControllerIntegrationTest {
         when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
         when(cartService.canProcessPayment(any())).thenReturn(Mono.just(Boolean.TRUE));
 
-        webTestClient.get()
+        webTestClient
+                .mutateWith(mockOidcLogin()
+                        .authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                .mutateWith(csrf())
+                .get()
                 .uri("/cart/items")
                 .exchange()
                 .expectStatus().isOk()
@@ -72,7 +81,11 @@ class CartControllerIntegrationTest {
         when(cartService.getItemsInTheCart())
                 .thenReturn(Mono.error(new IllegalStateException("Корзина не найдена")));
 
-        webTestClient.get()
+        webTestClient
+                .mutateWith(mockOidcLogin()
+                        .authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                .mutateWith(csrf())
+                .get()
                 .uri("/cart/items")
                 .exchange()
                 .expectStatus().isOk()
@@ -102,7 +115,11 @@ class CartControllerIntegrationTest {
         );
         when(cartService.canProcessPayment(any())).thenReturn(Mono.just(Boolean.TRUE));
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(mockOidcLogin()
+                        .authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                .mutateWith(csrf())
+                .post()
                 .uri(uriBuilder -> uriBuilder
                         .path("/cart/items")
                         .queryParam("id", "7")
@@ -135,7 +152,11 @@ class CartControllerIntegrationTest {
         );
         when(cartService.canProcessPayment(any())).thenReturn(Mono.just(Boolean.TRUE));
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(mockOidcLogin()
+                        .authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                .mutateWith(csrf())
+                .post()
                 .uri(uriBuilder -> uriBuilder
                         .path("/cart/items")
                         .queryParam("id", "8")
@@ -166,7 +187,11 @@ class CartControllerIntegrationTest {
         when(cartService.getItemsInTheCart())
                 .thenReturn(Mono.just(new CartDto(0L, List.of(), BigDecimal.ZERO)));
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(mockOidcLogin()
+                        .authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                .mutateWith(csrf())
+                .post()
                 .uri(uriBuilder -> uriBuilder
                         .path("/cart/items")
                         .queryParam("id", "9")
@@ -192,7 +217,11 @@ class CartControllerIntegrationTest {
         when(cartService.changeNumberOfItemsFromCart(any()))
                 .thenReturn(Mono.error(new IllegalStateException("Товар с id=999 не найден")));
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(mockOidcLogin()
+                        .authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                .mutateWith(csrf())
+                .post()
                 .uri(uriBuilder -> uriBuilder
                         .path("/cart/items")
                         .queryParam("id", "999")
@@ -206,5 +235,20 @@ class CartControllerIntegrationTest {
                     assertTrue(view.contains("Ошибка 500 — Внутренняя ошибка сервера"));
                     assertTrue(view.contains("Товар с id=999 не найден"));
                 });
+    }
+
+    /**
+     * Тест перенаправления не авторизованного пользователя на стринацу логина.
+     */
+    @Test
+    @DisplayName("Попытка покупки неавторизованным пользователем — редирект на логин")
+    void unauthorizedTest() {
+        webTestClient
+                .mutateWith(csrf())
+                .post()
+                .uri("/cart/items")
+                .exchange()
+                .expectStatus().is3xxRedirection()
+                .expectHeader().valueMatches("Location", ".*/login.*");
     }
 }

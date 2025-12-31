@@ -14,7 +14,7 @@ import java.math.BigDecimal;
 /**
  * Entity-класс для корзины покупателя в интернет-магазине.
  * Хранит идентификатор, список позиций корзины и итоговую сумму.
- * Связь с CartItem — один ко многим, каскад всех операций и удаление "осиротевших" позиций.
+ * Связь с User — один к одному
  */
 @Table("carts")
 @Data
@@ -24,6 +24,9 @@ public class Cart {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column("user_id")
+    private Long userId;
 
     @Column("total")
     private BigDecimal total = BigDecimal.ZERO;

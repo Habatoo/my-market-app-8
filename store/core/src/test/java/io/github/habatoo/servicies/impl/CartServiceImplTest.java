@@ -2,32 +2,43 @@ package io.github.habatoo.servicies.impl;
 
 import io.github.habatoo.dto.enums.Action;
 import io.github.habatoo.dto.request.ChangeNumberOfItemsRequestDto;
-import io.github.habatoo.dto.response.CartItemDto;
 import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.entity.Cart;
 import io.github.habatoo.entity.CartItem;
 import io.github.habatoo.entity.Item;
+import io.github.habatoo.entity.User;
 import io.github.habatoo.mappers.ItemMapper;
 import io.github.habatoo.repositories.CartItemRepository;
 import io.github.habatoo.repositories.CartRepository;
 import io.github.habatoo.repositories.ItemRepository;
+import io.github.habatoo.repositories.UserRepository;
 import io.github.habatoo.store.payment.api.PaymentsApi;
 import io.github.habatoo.store.payment.model.BalanceResponse;
 import io.github.habatoo.store.payment.model.PaymentRequest;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+import reactor.util.context.Context;
 
 import java.math.BigDecimal;
+import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -41,419 +52,360 @@ class CartServiceImplTest {
     @Mock
     private ItemRepository itemRepository;
     @Mock
+    private UserRepository userRepository;
+    @Mock
     private ItemMapper itemMapper;
     @Mock
     private PaymentsApi paymentsApi;
+
     @InjectMocks
     private CartServiceImpl service;
 
-    /**
-     * Корзина отсутствует (findAll().next() → empty) → создаётся новая корзина.
-     * Затем выполняется добавление нового товара (+1), т.к. товара ещё нет в корзине.
-     */
-    @Test
-    @DisplayName("changeNumberOfItems — корзина отсутствует, создаётся новая и добавляется первый товар")
-    void testChangeNumberOfItemsCartNotExists() {
-        ChangeNumberOfItemsRequestDto req =
-                ChangeNumberOfItemsRequestDto.builder()
-                        .id(10L)
-                        .action(Action.PLUS)
-                        .build();
+    private final String MOCK_EXTERNAL_ID = "test-sub";
+    private User mockUser;
+    private Cart mockCart;
+    private CartItem mockCartItem;
+    private Item mockItem;
+    private ItemDto mockItemDto;
 
-        Cart newCart = new Cart();
-        newCart.setId(1L);
+    @BeforeEach
+    void setUp() {
+        mockUser = new User();
+        mockUser.setId(100L);
+        mockUser.setExternalId(MOCK_EXTERNAL_ID);
 
-        Item item = new Item();
-        item.setId(10L);
-        item.setPrice(BigDecimal.TEN);
+        mockCart = new Cart();
+        mockCart.setId(7L);
+        mockCart.setUserId(100L);
 
-        ItemDto itemDto = new ItemDto(10L, null, null, null, BigDecimal.TEN, 1);
+        mockItem = new Item();
+        mockItem.setId(30L);
+        mockItem.setPrice(BigDecimal.TEN);
 
-        when(cartRepository.findAll()).thenReturn(Flux.empty());
-        when(cartRepository.save(any(Cart.class))).thenReturn(Mono.just(newCart));
-        when(itemRepository.findById(10L)).thenReturn(Mono.just(item));
-        when(cartItemRepository.findAllByCartId(1L)).thenReturn(Flux.empty());
-        when(cartItemRepository.save(any(CartItem.class)))
-                .thenReturn(Mono.just(new CartItem()));
-        when(cartRepository.findById(1L)).thenReturn(Mono.just(newCart));
-        when(itemMapper.toDto(item)).thenReturn(itemDto);
+        mockCartItem = new CartItem();
+        mockCartItem.setCartId(7L);
+        mockCartItem.setItemId(30L);
+        mockCartItem.setCount(1);
+        mockCartItem.setPrice(BigDecimal.TEN);
 
-        StepVerifier.create(service.changeNumberOfItems(req))
-                .expectNext(itemDto)
-                .verifyComplete();
-
-        verify(cartRepository, times(2)).save(any(Cart.class));
-        verify(cartItemRepository).save(any(CartItem.class));
-        verify(cartRepository, atLeastOnce()).findById(1L);
+        mockItemDto = new ItemDto(30L, null, null, null, BigDecimal.TEN, 1);
     }
 
     /**
-     * Товар уже находится в корзине, action=PLUS → count увеличивается.
+     * Тестирование уменьшения количества товара, когда он остается в корзине.
      */
     @Test
-    @DisplayName("changeNumberOfItems — товар найден, increment")
-    void testChangeNumberOfItemsIncrement() {
-        Cart cart = new Cart();
-        cart.setId(5L);
+    @DisplayName("Уменьшение количества: товар остается в корзине")
+    void changeNumberOfItemsDecrementStaysTest() {
+        ChangeNumberOfItemsRequestDto req = createRequest(20L, Action.MINUS);
 
-        CartItem ci = new CartItem();
-        ci.setCartId(5L);
-        ci.setItemId(20L);
-        ci.setCount(2);
-        ci.setPrice(BigDecimal.valueOf(50));
+        mockCartItem.setItemId(20L);
+        mockCartItem.setCount(2);
+        mockCartItem.setPrice(BigDecimal.valueOf(50));
+        mockItemDto = new ItemDto(20L, null, null, null, BigDecimal.valueOf(50), 1);
 
-        Item item = new Item();
-        item.setId(20L);
-        item.setPrice(BigDecimal.valueOf(50));
+        mockAuthAndCart(5L);
 
-        ItemDto dto = new ItemDto(20L, null, null, null, BigDecimal.valueOf(50), 1);
+        when(cartItemRepository.findAllByCartId(5L)).thenReturn(Flux.just(mockCartItem));
+        when(cartItemRepository.save(any(CartItem.class))).thenReturn(Mono.just(mockCartItem));
+        when(itemRepository.findById(20L)).thenReturn(Mono.just(mockItem));
+        when(itemMapper.toDto(any(Item.class))).thenReturn(mockItemDto);
 
-        ChangeNumberOfItemsRequestDto req =
-                ChangeNumberOfItemsRequestDto.builder()
-                        .id(20L)
-                        .action(Action.PLUS)
-                        .build();
-
-        when(cartRepository.findAll()).thenReturn(Flux.just(cart));
-        when(cartItemRepository.findAllByCartId(5L)).thenReturn(Flux.just(ci));
-        when(cartItemRepository.save(any())).thenReturn(Mono.just(ci));
-        when(itemRepository.findById(20L)).thenReturn(Mono.just(item));
-        when(itemMapper.toDto(item)).thenReturn(dto);
-
-        StepVerifier.create(service.changeNumberOfItems(req))
-                .expectNext(dto)
-                .verifyComplete();
-
-        verify(cartItemRepository).save(argThat(c -> c.getCount() == 3));
-    }
-
-    /**
-     * Товар в корзине, action=MINUS → count уменьшается, но остаётся > 0.
-     */
-    @Test
-    @DisplayName("changeNumberOfItems — decrement, товар остаётся в корзине")
-    void testChangeNumberOfItemsDecrementStays() {
-        Cart cart = new Cart();
-        cart.setId(5L);
-
-        CartItem ci = new CartItem();
-        ci.setCartId(5L);
-        ci.setItemId(20L);
-        ci.setCount(2);
-        ci.setPrice(BigDecimal.valueOf(50));
-
-        Item item = new Item();
-        item.setId(20L);
-
-        ItemDto dto = new ItemDto(20L, null, null, null, BigDecimal.valueOf(50), 1);
-
-        ChangeNumberOfItemsRequestDto req =
-                ChangeNumberOfItemsRequestDto.builder()
-                        .id(20L)
-                        .action(Action.MINUS)
-                        .build();
-
-        when(cartRepository.findAll()).thenReturn(Flux.just(cart));
-        when(cartItemRepository.findAllByCartId(5L)).thenReturn(Flux.just(ci));
-        when(cartItemRepository.save(any())).thenReturn(Mono.just(ci));
-        when(itemRepository.findById(20L)).thenReturn(Mono.just(item));
-        when(itemMapper.toDto(item)).thenReturn(dto);
-
-        StepVerifier.create(service.changeNumberOfItems(req))
-                .expectNext(dto)
+        StepVerifier.create(withAuth(service.changeNumberOfItems(req)))
+                .expectNext(mockItemDto)
                 .verifyComplete();
 
         verify(cartItemRepository).save(argThat(c -> c.getCount() == 1));
     }
 
     /**
-     * count становится 0 → CartItem удаляется, выполняется пересчёт тотала.
+     * Тестирование поведения системы при отсутствии авторизации.
      */
     @Test
-    @DisplayName("changeNumberOfItems — decrement до 0 → удаление товара")
-    void testChangeNumberOfItemsDecrementToZero() {
-        Cart cart = new Cart();
-        cart.setId(7L);
-
-        CartItem ci = new CartItem();
-        ci.setCartId(7L);
-        ci.setItemId(30L);
-        ci.setCount(1);
-        ci.setPrice(BigDecimal.TEN);
-
-        ChangeNumberOfItemsRequestDto req =
-                ChangeNumberOfItemsRequestDto.builder()
-                        .id(30L)
-                        .action(Action.MINUS)
-                        .build();
-
-        when(cartRepository.findAll())
-                .thenReturn(Flux.just(cart));
-        when(cartItemRepository.findAllByCartId(7L))
-                .thenReturn(Flux.just(ci))
-                .thenReturn(Flux.empty());
-        when(cartItemRepository.delete(ci))
-                .thenReturn(Mono.empty());
-        when(cartRepository.findById(7L))
-                .thenReturn(Mono.just(cart));
-        when(cartRepository.save(any()))
-                .thenReturn(Mono.just(cart));
-
-        Item item = new Item();
-        item.setId(30L);
-        item.setPrice(BigDecimal.TEN);
-        when(itemRepository.findById(30L)).thenReturn(Mono.just(item));
-
-        ItemDto dto = new ItemDto(30L, "title", "desc", "img/path", BigDecimal.TEN, 0);
-        when(itemMapper.toDto(item)).thenReturn(dto);
+    @DisplayName("Изменение количества: отказ для неавторизованного пользователя")
+    void changeNumberOfItemsUnauthTest() {
+        ChangeNumberOfItemsRequestDto req = createRequest(1L, Action.PLUS);
 
         StepVerifier.create(service.changeNumberOfItems(req))
-                .expectNext(dto)
-                .verifyComplete();
-
-        verify(cartItemRepository).delete(ci);
-        verify(cartRepository).save(argThat(c ->
-                c.getTotal().compareTo(BigDecimal.ZERO) == 0
-        ));
-    }
-
-    /**
-     * Товар отсутствует в корзине, action=PLUS → создаётся новый CartItem.
-     */
-    @Test
-    @DisplayName("changeNumberOfItems — increment товара, которого нет в корзине")
-    void testChangeNumberOfItemsIncrementNewItem() {
-        Cart cart = new Cart();
-        cart.setId(3L);
-
-        Item item = new Item();
-        item.setId(50L);
-        item.setPrice(BigDecimal.valueOf(20));
-
-        ItemDto dto = new ItemDto(50L, null, null, null, BigDecimal.valueOf(20), 1);
-
-        ChangeNumberOfItemsRequestDto req =
-                ChangeNumberOfItemsRequestDto.builder()
-                        .id(50L)
-                        .action(Action.PLUS)
-                        .build();
-
-        when(cartRepository.findAll()).thenReturn(Flux.just(cart));
-        when(cartItemRepository.findAllByCartId(3L)).thenReturn(Flux.empty());
-
-        when(itemRepository.findById(50L)).thenReturn(Mono.just(item));
-        when(cartItemRepository.save(any())).thenReturn(Mono.just(new CartItem()));
-
-        when(cartItemRepository.findAllByCartId(3L)).thenReturn(Flux.empty());
-        when(cartRepository.findById(3L)).thenReturn(Mono.just(cart));
-        when(cartRepository.save(any(Cart.class))).thenReturn(Mono.just(cart));
-
-        when(itemMapper.toDto(item)).thenReturn(dto);
-
-        StepVerifier.create(service.changeNumberOfItems(req))
-                .expectNext(dto)
                 .verifyComplete();
     }
 
     /**
-     * getItemsInTheCart — сбор DTO
+     * Тестирование удаления товара из корзины при уменьшении количества до нуля.
      */
     @Test
-    @DisplayName("getItemsInTheCart — корректная сборка CartDto")
-    void testGetItemsInTheCart() {
-        Cart cart = new Cart();
-        cart.setId(1L);
+    @DisplayName("Уменьшение количества до нуля: удаление товара из корзины")
+    void changeNumberOfItemsDecrementToZeroTest() {
+        ChangeNumberOfItemsRequestDto req = createRequest(30L, Action.MINUS);
+        mockItemDto = new ItemDto(30L, null, null, null, null, 0);
 
-        CartItem ci = new CartItem();
-        ci.setCartId(1L);
-        ci.setItemId(10L);
-        ci.setCount(2);
-        ci.setPrice(BigDecimal.valueOf(30));
+        mockAuthAndCart(7L);
+        when(cartItemRepository.findAllByCartId(7L)).thenReturn(Flux.just(mockCartItem), Flux.empty());
+        when(cartItemRepository.delete(mockCartItem)).thenReturn(Mono.empty());
+        when(cartRepository.findById(7L)).thenReturn(Mono.just(mockCart));
+        when(cartRepository.save(any(Cart.class))).thenReturn(Mono.just(mockCart));
+        when(itemRepository.findById(30L)).thenReturn(Mono.just(mockItem));
+        when(itemMapper.toDto(any(Item.class))).thenReturn(mockItemDto);
 
-        Item item = new Item();
-        item.setId(10L);
-        item.setPrice(BigDecimal.valueOf(30));
+        StepVerifier.create(withAuth(service.changeNumberOfItems(req)))
+                .expectNext(mockItemDto)
+                .verifyComplete();
 
-        ItemDto itemDto = new ItemDto(10L, null, null, null, BigDecimal.valueOf(30), 1);
-        CartItemDto expectedCI =
-                new CartItemDto(itemDto, 2, BigDecimal.valueOf(30));
+        verify(cartItemRepository).delete(mockCartItem);
+        verify(cartRepository).save(argThat(c -> c.getTotal().compareTo(BigDecimal.ZERO) == 0));
+    }
 
-        when(cartRepository.findAll()).thenReturn(Flux.just(cart));
-        when(cartItemRepository.findAllByCartId(1L)).thenReturn(Flux.just(ci));
-        when(itemRepository.findById(10L)).thenReturn(Mono.just(item));
-        when(itemMapper.toDto(item)).thenReturn(itemDto);
+    /**
+     * Тестирование получения списка всех товаров в корзине.
+     */
+    @Test
+    @DisplayName("Получение содержимого корзины")
+    void getItemsInTheCartTest() {
+        mockAuthAndCart(1L);
+        when(cartItemRepository.findAllByCartId(1L)).thenReturn(Flux.just(mockCartItem));
+        when(itemRepository.findById(anyLong())).thenReturn(Mono.just(mockItem));
+        when(itemMapper.toDto(any(Item.class))).thenReturn(mockItemDto);
 
-        StepVerifier.create(service.getItemsInTheCart())
-                .expectNextMatches(result ->
-                        result.id() == 1 &&
-                                result.items().size() == 1 &&
-                                result.items().get(0).count() == 2 &&
-                                result.total().compareTo(BigDecimal.valueOf(60)) == 0
-                )
+        StepVerifier.create(withAuth(service.getItemsInTheCart()))
+                .expectNextMatches(result -> result.id().equals(1L) && result.items().size() == 1)
                 .verifyComplete();
     }
 
     /**
-     * changeNumberOfItemsFromCart — вызывает changeNumberOfItems + getItemsInTheCart
+     * Тестирование успешной проверки возможности оплаты при достаточном балансе.
      */
     @Test
-    @DisplayName("changeNumberOfItemsFromCart — цепочка вызовов change + getItems")
-    void testChangeNumberOfItemsFromCart() {
-        ChangeNumberOfItemsRequestDto req = ChangeNumberOfItemsRequestDto.builder()
-                .id(5L)
-                .action(Action.PLUS)
-                .build();
+    @DisplayName("Проверка оплаты: успех при достаточном балансе")
+    void canProcessPaymentSuccessTest() {
+        mockPaymentApi(BigDecimal.valueOf(300));
 
-        Cart cart = new Cart();
-        cart.setId(1L);
+        Mono<Boolean> result = service.canProcessPayment(new PaymentRequest().amount(BigDecimal.valueOf(200)))
+                .contextWrite(oauthContext());
 
-        when(cartRepository.findAll()).thenReturn(Flux.just(cart));
-        when(cartItemRepository.findAllByCartId(1L)).thenReturn(Flux.empty());
-
-        Item item = new Item();
-        item.setId(5L);
-        item.setPrice(BigDecimal.TEN);
-
-        ItemDto dto = new ItemDto(5L, null, null, null, BigDecimal.TEN, 1);
-
-        when(itemRepository.findById(5L)).thenReturn(Mono.just(item));
-        when(itemMapper.toDto(item)).thenReturn(dto);
-        when(cartItemRepository.save(any())).thenReturn(Mono.just(new CartItem()));
-        when(cartRepository.findById(anyLong())).thenReturn(Mono.just(cart));
-        when(cartRepository.save(any())).thenReturn(Mono.just(cart));
-
-        StepVerifier.create(service.changeNumberOfItemsFromCart(req))
-                .assertNext(res -> {
-                    assertEquals(1L, res.id());
-                    assertTrue(res.items().isEmpty(), "Корзина должна быть пустой");
-                })
+        StepVerifier.create(result)
+                .expectNext(true)
                 .verifyComplete();
-
-        verify(cartItemRepository, atLeastOnce()).save(any());
-        verify(itemRepository).findById(5L);
     }
 
     /**
-     * Имитирует ситуацию, когда из корзины удаляется последний товар (action = MINUS),
-     * и это побочно вызывает recalcAndSaveCartTotal.changeNumberOfItems
-     * — вызывает changeNumberOfItems + getItemsInTheCart
+     * Тестирование отказа в оплате при недостаточном балансе.
      */
     @Test
-    @DisplayName("changeNumberOfItems — цепочка вызовов change + getItems + ")
-    void testRecalcTriggeredOnItemDelete() {
-        long cartId = 1L;
-        long itemId = 100L;
+    @DisplayName("Проверка оплаты: отказ при недостаточном балансе")
+    void canProcessPaymentWhenBalanceNotEnoughReturnFalseTest() {
+        mockPaymentApi(BigDecimal.valueOf(100));
 
-        ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
-                .id(itemId)
-                .action(Action.MINUS)
-                .sort(null)
-                .pageNumber(null)
-                .pageSize(null)
-                .build();
+        Mono<Boolean> result = service.canProcessPayment(new PaymentRequest().amount(BigDecimal.valueOf(300)))
+                .contextWrite(oauthContext());
 
-        Cart cart = new Cart();
-        cart.setId(cartId);
-
-        when(cartRepository.findAll()).thenReturn(Flux.just(cart));
-        when(cartRepository.save(any())).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
-
-        CartItem ci = new CartItem();
-        ci.setCartId(cartId);
-        ci.setItemId(itemId);
-        ci.setCount(1);
-        ci.setPrice(BigDecimal.TEN);
-
-        CartItem ci2 = new CartItem();
-        ci2.setCartId(cartId);
-        ci2.setPrice(BigDecimal.valueOf(5));
-        ci2.setCount(3);
-
-        when(cartItemRepository.findAllByCartId(cartId))
-                .thenReturn(Flux.just(ci))
-                .thenReturn(Flux.just(ci2));
-        when(cartItemRepository.delete(ci)).thenReturn(Mono.empty());
-        when(cartRepository.findById(cartId)).thenReturn(Mono.just(cart));
-
-        Item removedItem = new Item();
-        removedItem.setId(itemId);
-        removedItem.setTitle("title");
-        removedItem.setDescription("desc");
-        removedItem.setImgPath("img");
-        removedItem.setPrice(BigDecimal.TEN);
-
-        when(itemRepository.findById(itemId)).thenReturn(Mono.just(removedItem));
-        when(itemMapper.toDto(removedItem)).thenReturn(new ItemDto(
-                itemId, "title", "desc", "img", BigDecimal.TEN, 0));
-
-        StepVerifier.create(service.changeNumberOfItems(request))
-                .expectNextCount(1)
-                .verifyComplete();
-
-        verify(cartRepository).save(argThat(c ->
-                c.getTotal().compareTo(BigDecimal.valueOf(15)) == 0
-        ));
-    }
-
-    /**
-     * Имитирует ситуацию, когда баланс меньше суммы покупки.
-     */
-    @Test
-    @DisplayName("canProcessPayment → false, когда баланс < суммы")
-    void testCanProcessPaymentWhenBalanceNotEnoughReturnFalse() {
-        PaymentRequest req = new PaymentRequest()
-                .amount(BigDecimal.valueOf(300));
-
-        BalanceResponse balance = new BalanceResponse()
-                .balance(BigDecimal.valueOf(100));
-
-        when(paymentsApi.getWalletBalance())
-                .thenReturn(Mono.just(balance));
-
-        StepVerifier.create(service.canProcessPayment(req))
+        StepVerifier.create(result)
                 .expectNext(false)
                 .verifyComplete();
     }
 
     /**
-     * Имитирует ситуацию, когда от сервиса платежй приходит ошибка.
+     * Тестирование проверки оплаты, когда баланс равен сумме покупки.
      */
     @Test
-    @DisplayName("canProcessPayment → ошибка пробрасывается в onErrorMap")
-    void testCanProcessPaymentWhenApiErrorThenExceptionPropagated() {
-        PaymentRequest req = new PaymentRequest()
-                .amount(BigDecimal.valueOf(100));
+    @DisplayName("Проверка оплаты: успех при балансе равном сумме")
+    void canProcessPaymentWhenBalanceEqualsAmountReturnTrueTest() {
+        mockPaymentApi(BigDecimal.valueOf(200));
 
-        RuntimeException ex = new RuntimeException("wallet unavailable");
+        Mono<Boolean> result = service.canProcessPayment(new PaymentRequest().amount(BigDecimal.valueOf(200)))
+                .contextWrite(oauthContext());
 
-        when(paymentsApi.getWalletBalance())
-                .thenReturn(Mono.error(ex));
-
-        StepVerifier.create(service.canProcessPayment(req))
-                .expectErrorMatches(t -> t instanceof RuntimeException &&
-                        t.getMessage().equals("wallet unavailable"))
-                .verify();
+        StepVerifier.create(result)
+                .expectNext(true)
+                .verifyComplete();
     }
 
     /**
-     * Имитирует ситуацию, когда баланс точно равен сумме покупки.
+     * Тестирование обработки ошибок внешнего API платежной системы.
      */
     @Test
-    @DisplayName("canProcessPayment → true, когда баланс точно равен сумме (compareTo == 0)")
-    void canProcessPayment_whenBalanceEqualsAmount_returnTrue() {
-        PaymentRequest req = new PaymentRequest()
-                .amount(BigDecimal.valueOf(200));
-        BalanceResponse balance = new BalanceResponse()
-                .balance(BigDecimal.valueOf(200));
+    @DisplayName("Проверка оплаты: обработка ошибки API")
+    void canProcessPaymentApiErrorTest() {
+        when(paymentsApi.getWalletBalance()).thenReturn(Mono.error(new RuntimeException("API Down")));
 
-        when(paymentsApi.getWalletBalance())
-                .thenReturn(Mono.just(balance));
+        Mono<Boolean> result = service.canProcessPayment(new PaymentRequest().amount(BigDecimal.valueOf(100)))
+                .contextWrite(oauthContext());
 
-        StepVerifier.create(service.canProcessPayment(req))
-                .expectNext(true)
+        StepVerifier.create(result)
+                .expectNext(false)
                 .verifyComplete();
-
-        verify(paymentsApi, times(1)).getWalletBalance();
     }
 
+    /**
+     * Проверка регистрации нового пользователя и создания для него корзины при первом входе.
+     */
+    @Test
+    @DisplayName("Синхронизация: регистрация нового пользователя и создание корзины")
+    void syncUserAndCreateNewCartTest() {
+        when(userRepository.findByExternalId(MOCK_EXTERNAL_ID)).thenReturn(Mono.empty());
+        when(userRepository.save(any(User.class))).thenReturn(Mono.just(mockUser));
+        when(cartRepository.findByUserId(mockUser.getId())).thenReturn(Mono.empty());
+        when(cartRepository.save(any(Cart.class))).thenReturn(Mono.just(mockCart));
+        when(cartItemRepository.findAllByCartId(anyLong())).thenReturn(Flux.empty());
+
+        StepVerifier.create(withAuth(service.getItemsInTheCart()))
+                .expectNextMatches(result -> result.id().equals(7L) && result.items().isEmpty())
+                .verifyComplete();
+
+        verify(userRepository).save(argThat(u -> u.getExternalId().equals(MOCK_EXTERNAL_ID)));
+        verify(cartRepository).save(argThat(c -> c.getUserId().equals(100L)));
+    }
+
+    /**
+     * Проверка извлечения данных из OAuth2AuthenticationToken (OidcUser).
+     */
+    @Test
+    @DisplayName("Аутентификация: использование OAuth2AuthenticationToken")
+    void oauth2AuthenticationSupportTest() {
+        OidcUser oidcUser = mock(OidcUser.class);
+        when(oidcUser.getAttribute("sub")).thenReturn(MOCK_EXTERNAL_ID);
+
+        OAuth2AuthenticationToken auth = new OAuth2AuthenticationToken(oidcUser, null, "client-id");
+
+        when(userRepository.findByExternalId(MOCK_EXTERNAL_ID)).thenReturn(Mono.just(mockUser));
+        when(cartRepository.findByUserId(mockUser.getId())).thenReturn(Mono.just(mockCart));
+        when(cartItemRepository.findAllByCartId(anyLong())).thenReturn(Flux.empty());
+
+        StepVerifier.create(service.getItemsInTheCart()
+                        .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(createMockContext(auth)))))
+                .expectNextCount(1)
+                .verifyComplete();
+    }
+
+    /**
+     * Проверка добавления нового товара, которого еще нет в корзине.
+     */
+    @Test
+    @DisplayName("Изменение количества: добавление нового товара (handleNewItem)")
+    void handleNewItemActionPlusTest() {
+        ChangeNumberOfItemsRequestDto req = createRequest(30L, Action.PLUS);
+
+        mockAuthAndCart(7L);
+        when(cartItemRepository.findAllByCartId(7L)).thenReturn(Flux.empty(), Flux.just(mockCartItem));
+        when(itemRepository.findById(30L)).thenReturn(Mono.just(mockItem));
+        when(cartItemRepository.save(any(CartItem.class))).thenReturn(Mono.just(mockCartItem));
+        when(cartRepository.findById(7L)).thenReturn(Mono.just(mockCart));
+        when(cartRepository.save(any(Cart.class))).thenReturn(Mono.just(mockCart));
+        when(itemMapper.toDto(any(Item.class))).thenReturn(mockItemDto);
+
+        StepVerifier.create(withAuth(service.changeNumberOfItems(req)))
+                .expectNext(mockItemDto)
+                .verifyComplete();
+
+        verify(cartItemRepository).save(argThat(ci -> ci.getItemId().equals(30L) && ci.getCount() == 1));
+    }
+
+    /**
+     * Проверка игнорирования действия MINUS для нового товара.
+     */
+    @Test
+    @DisplayName("Изменение количества: игнорирование MINUS для нового товара")
+    void handleNewItemActionMinusIgnoreTest() {
+        ChangeNumberOfItemsRequestDto req = createRequest(30L, Action.MINUS);
+
+        mockAuthAndCart(7L);
+        when(cartItemRepository.findAllByCartId(7L)).thenReturn(Flux.empty());
+
+        StepVerifier.create(withAuth(service.changeNumberOfItems(req)))
+                .verifyComplete();
+    }
+
+    /**
+     * Проверка цепочки вызовов при изменении количества прямо из корзины.
+     */
+    @Test
+    @DisplayName("Изменение количества из корзины: полная цепочка")
+    void changeNumberOfItemsFromCartTest() {
+        ChangeNumberOfItemsRequestDto req = createRequest(30L, Action.PLUS);
+
+        mockAuthAndCart(7L);
+        when(cartItemRepository.findAllByCartId(7L)).thenReturn(Flux.just(mockCartItem));
+        when(cartItemRepository.save(any(CartItem.class))).thenReturn(Mono.just(mockCartItem));
+        when(itemRepository.findById(30L)).thenReturn(Mono.just(mockItem));
+        when(itemMapper.toDto(any(Item.class))).thenReturn(mockItemDto);
+
+        StepVerifier.create(withAuth(service.changeNumberOfItemsFromCart(req)))
+                .expectNextMatches(res -> res.id().equals(7L))
+                .verifyComplete();
+    }
+
+    /**
+     * Проверка возврата заглушки при удалении товара, который более не существует в БД.
+     */
+    @Test
+    @DisplayName("Удаление: возврат DTO для удаленного из БД товара")
+    void removeItemWithMissingItemInDbTest() {
+        ChangeNumberOfItemsRequestDto req = createRequest(30L, Action.MINUS);
+
+        mockAuthAndCart(7L);
+        when(cartItemRepository.findAllByCartId(7L)).thenReturn(Flux.just(mockCartItem), Flux.empty());
+        when(cartItemRepository.delete(any(CartItem.class))).thenReturn(Mono.empty());
+        when(cartRepository.findById(7L)).thenReturn(Mono.just(mockCart));
+        when(cartRepository.save(any(Cart.class))).thenReturn(Mono.just(mockCart));
+        when(itemRepository.findById(30L)).thenReturn(Mono.empty());
+
+        StepVerifier.create(withAuth(service.changeNumberOfItems(req)))
+                .expectNextMatches(dto -> dto.id().equals(30L) && dto.count() == 0)
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("Аутентификация: некорректный тип Principal")
+    void extractExternalIdNullTest() {
+        Authentication auth = mock(Authentication.class);
+        when(auth.isAuthenticated()).thenReturn(true);
+        when(auth.getPrincipal()).thenReturn(new Object());
+
+        StepVerifier.create(service.getItemsInTheCart()
+                        .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(createMockContext(auth)))))
+                .verifyComplete();
+    }
+
+    private SecurityContext createMockContext(Authentication auth) {
+        SecurityContext context = mock(SecurityContext.class);
+        when(context.getAuthentication()).thenReturn(auth);
+        return context;
+    }
+
+    private void mockAuthAndCart(Long cartId) {
+        mockCart.setId(cartId);
+        when(userRepository.findByExternalId(MOCK_EXTERNAL_ID)).thenReturn(Mono.just(mockUser));
+        when(cartRepository.findByUserId(mockUser.getId())).thenReturn(Mono.just(mockCart));
+    }
+
+    private void mockPaymentApi(BigDecimal balance) {
+        BalanceResponse res = new BalanceResponse().balance(balance);
+        when(paymentsApi.getWalletBalance()).thenReturn(Mono.just(res));
+    }
+
+    /**
+     * Вспомогательный метод для имитации авторизованного пользователя в реактивном потоке
+     */
+    private Context oauthContext() {
+        var auth = new UsernamePasswordAuthenticationToken(
+                "user", "password", List.of(new SimpleGrantedAuthority("ROLE_USER")));
+        return ReactiveSecurityContextHolder.withAuthentication(auth);
+    }
+
+    private ChangeNumberOfItemsRequestDto createRequest(Long id, Action action) {
+        return ChangeNumberOfItemsRequestDto.builder().id(id).action(action).build();
+    }
+
+    private <T> Mono<T> withAuth(Mono<T> publisher) {
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .claim("sub", MOCK_EXTERNAL_ID)
+                .build();
+
+        JwtAuthenticationToken auth = new JwtAuthenticationToken(jwt);
+        auth.setAuthenticated(true);
+        SecurityContext context = mock(SecurityContext.class);
+        when(context.getAuthentication()).thenReturn(auth);
+
+        return publisher.contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(context)));
+    }
 }

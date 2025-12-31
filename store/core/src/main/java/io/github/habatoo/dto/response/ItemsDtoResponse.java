@@ -12,12 +12,14 @@ import java.util.Map;
  * @param cart       объект корзины
  * @param paging     постраничное разбиение
  * @param itemCounts количесво товара
+ * @param isAuth     флаг авторизации
  */
 @Builder
 public record ItemsDtoResponse(
         List<List<ItemDto>> itemsRows,
         CartDto cart,
         Paging paging,
-        Map<Long, Integer> itemCounts
+        Map<Long, Integer> itemCounts,
+        boolean isAuth
 ) {
 }

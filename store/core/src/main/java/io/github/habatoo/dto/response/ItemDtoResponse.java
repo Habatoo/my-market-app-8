@@ -7,10 +7,12 @@ import lombok.Builder;
  *
  * @param item      объект товара
  * @param cartCount число товаров в корзине
+ * @param isAuth    флаг авторизации
  */
 @Builder
 public record ItemDtoResponse(
         ItemDto item,
-        Integer cartCount
+        Integer cartCount,
+        boolean isAuth
 ) {
 }

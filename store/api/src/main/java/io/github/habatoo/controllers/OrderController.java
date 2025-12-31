@@ -4,6 +4,7 @@ import io.github.habatoo.servicies.OrderService;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,6 +35,7 @@ public class OrderController {
      * @return имя шаблона списка заказов
      */
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public Mono<String> getOrderList(Model model) {
         log.info("GET /orders — запрос списка заказов пользователя");
 
@@ -54,6 +56,7 @@ public class OrderController {
      * @return имя шаблона отдельного заказа
      */
     @GetMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
     public Mono<String> getOrder(
             @PathVariable @Positive Long id,
             @RequestParam(value = "newOrder", required = false, defaultValue = "false") boolean newOrder,

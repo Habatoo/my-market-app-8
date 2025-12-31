@@ -2,19 +2,19 @@ package io.github.habatoo.mappers;
 
 import io.github.habatoo.dto.response.ItemDto;
 import io.github.habatoo.entity.Item;
+import io.github.habatoo.utils.BaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
 @DisplayName("Интеграционный тест ItemMapper — маппер")
-class ItemMapperIntegrationTest {
+class ItemMapperIntegrationTest extends BaseTest {
+
     @Autowired
     private ItemMapper itemMapper;
 

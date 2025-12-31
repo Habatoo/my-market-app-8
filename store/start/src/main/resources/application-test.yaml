@@ -1,20 +1,27 @@
 spring:
-  liquibase:
-    enabled: true
-    change-log: classpath:db/changelog/db.changelog-master.yaml
-    contexts: test
-  web:
-    cors:
-      path-pattern: "/**"
-      allowed-origin-patterns:
-        - "http://localhost"
-        - "http://127.0.0.1"
-      allowed-methods: [GET, POST, PUT, DELETE, OPTIONS]
-      allowed-headers: "*"
-      allow-credentials: true
-      max-age: 3600
+  main:
+    allow-bean-definition-overriding: true
+
+  r2dbc:
+    pool:
+      enabled: true
+
+  security:
+    oauth2:
+      client:
+        registration: {}
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:8080/jwks
+
+  springdoc:
+    api-docs:
+      enabled: false
+    swagger-ui:
+      enabled: false
 
 logging:
   level:
     org:
       testcontainers: DEBUG
+      org.springframework.security: INFO

@@ -1,8 +1,8 @@
 spring:
   r2dbc:
-    url: ${SPRING_DATASOURCE_URL:r2dbc:postgresql://${SPRING_DATASOURCE_HOST:localhost}:${SPRING_DATASOURCE_DB_PORT:5432}/${SPRING_DATASOURCE_DB_NAME:shop_db}}
-    username: ${SPRING_DATASOURCE_DB_USERNAME:shop_admin}
-    password: ${SPRING_DATASOURCE_DB_PASSWORD:shop_password}
+    url: ${SPRING_R2DBC_URL:r2dbc:postgresql://localhost:5432/shop_db}
+    username: ${SPRING_R2DBC_USERNAME:shop_admin}
+    password: ${SPRING_R2DBC_PASSWORD:shop_password}
     pool:
       enabled: true
       initial-size: 10
@@ -10,10 +10,29 @@ spring:
       max-idle-time: 30s
       max-life-time: 10m
       validation-query: SELECT 1
+
   liquibase:
     enabled: true
-    url: jdbc:postgresql://${SPRING_DATASOURCE_HOST:localhost}:${SPRING_DATASOURCE_DB_PORT:5432}/${SPRING_DATASOURCE_DB_NAME:shop_db}
-    user: ${SPRING_DATASOURCE_DB_USERNAME:shop_admin}
-    password: ${SPRING_DATASOURCE_DB_PASSWORD:shop_password}
+    url: ${SPRING_LIQUIBASE_URL:jdbc:postgresql://localhost:5432/shop_db}
+    user: ${SPRING_LIQUIBASE_USER:shop_admin}
+    password: ${SPRING_LIQUIBASE_PASSWORD:shop_password}
     change-log: classpath:db/changelog/db.changelog-master.yaml
     contexts: dev
+
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            client-id: my-market-app
+            client-secret: ${KEYCLOAK_SECRET:90bd600c-7781-4435-961e-1f5139265f7c}
+            scope: openid, profile, email, roles
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          keycloak:
+            issuer-uri: ${KEYCLOAK_INTERNAL_URL:http://localhost:8082/realms/my-market-realm}
+            user-name-attribute: sub
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_INTERNAL_URL:http://localhost:8082/realms/my-market-realm}

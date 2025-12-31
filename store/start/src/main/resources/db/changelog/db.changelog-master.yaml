@@ -4,3 +4,6 @@ databaseChangeLog:
   - include:
       file: db/changelog/002_fill_database.yaml
       context: dev,test
+  - include:
+      file: db/changelog/003_add_users.yaml
+      context: dev,test

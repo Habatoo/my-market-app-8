@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("Тесты для RootRedirectController")
 class RootRedirectControllerTest {
 
-    private static final String REDIRECT = "redirect:/items"; // тот же REDIRECT, что в контроллере
+    private static final String REDIRECT = "redirect:/items";
 
     private final RootRedirectController controller = new RootRedirectController();
 

@@ -1,8 +1,20 @@
 spring:
   application:
     name: payment
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_INTERNAL_URL:http://localhost:8082/realms/my-market-realm}/protocol/openid-connect/certs
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+      timeout: 10s
+
 server:
   port: 8081
 
 application:
   balance: 300.00
+  redis-ttl-minutes: ${SPRING_REDIS_TTL:1}

@@ -16,6 +16,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -26,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Реализация для работы с товарами.
@@ -48,36 +52,14 @@ public class ItemServiceImpl implements ItemService {
      */
     @Override
     public Mono<ItemsDtoResponse> getItems(GetItemsRequestDto request) {
-        Mono<CartDto> cartMono = cartService.getItemsInTheCart();
+        PageParams params = new PageParams(request);
 
-        int pageSize = Optional.ofNullable(request.getPageSize()).orElse(5);
-        int pageNumber = Optional.ofNullable(request.getPageNumber()).orElse(1);
-        String rawSearch = Optional.ofNullable(request.getSearch()).orElse("").trim();
-        Sort sort = getSort(request);
-
-        return redisItemListStorage.getItems(
-                        rawSearch,
-                        pageSize,
-                        pageNumber,
-                        sort)
-                .flatMap(cachedItems -> cartMono
-                        .flatMap(cart -> loadCountsForItems(cachedItems, cart.id())
-                                .map(countMap -> buildItemsResponse(
-                                        splitByRows(cachedItems, 3), cart,
-                                        getPaging(pageSize, pageNumber, cachedItems.size()), countMap))
-                        ))
-                .switchIfEmpty(
-                        loadItemsFromDb(rawSearch, pageSize, pageNumber, sort, cartMono)
-                                .doOnNext(response -> {
-                                    redisItemListStorage.saveItems(
-                                                    rawSearch,
-                                                    pageSize,
-                                                    pageNumber,
-                                                    sort,
-                                                    flattenItems(response.itemsRows()))
-                                            .subscribe();
-                                })
-                );
+        return getIsAuthMono().flatMap(isAuth ->
+                fetchItemsList(params)
+                        .zipWith(fetchTotalCount(params))
+                        .flatMap(tuple -> assembleItemsResponse(
+                                tuple.getT1(), tuple.getT2(), params, isAuth))
+        );
     }
 
     /**
@@ -85,21 +67,10 @@ public class ItemServiceImpl implements ItemService {
      */
     @Override
     public Mono<ItemDtoResponse> getItem(Long id) {
-        Mono<ItemDto> itemMono = redisItemStorage.getItem(id)
-                .switchIfEmpty(
-                        repository.findById(id)
-                                .switchIfEmpty(Mono.error(
-                                        new IllegalStateException("Товар с id=" + id + " не найден")))
-                                .map(mapper::toDto)
-                                .flatMap(dto -> redisItemStorage.saveItem(id, dto)
-                                        .thenReturn(dto))
-                );
-
-        Mono<CartDto> cartMono = cartService.getItemsInTheCart()
-                .defaultIfEmpty(obtainCartDto());
-
-        return itemMono.zipWith(cartMono)
-                .flatMap(tuple -> buildItemResponse(tuple.getT1(), tuple.getT2(), id));
+        return getIsAuthMono().flatMap(isAuth ->
+                fetchSingleItem(id)
+                        .flatMap(item -> assembleSingleItemResponse(item, isAuth))
+        );
     }
 
     /**
@@ -109,102 +80,136 @@ public class ItemServiceImpl implements ItemService {
     public Mono<ItemDtoResponse> changeNumberOfItemsFromPage(ChangeNumberOfItemsRequestDto request) {
         return cartService.changeNumberOfItems(request)
                 .switchIfEmpty(Mono.defer(() -> repository.findById(request.getId()).map(mapper::toDto)))
-                .zipWith(cartService.getItemsInTheCart())
-                .flatMap(tuple -> buildItemResponse(
-                        tuple.getT1(), tuple.getT2(), tuple.getT1().id()));
+                .zipWith(getIsAuthMono())
+                .flatMap(tuple -> assembleSingleItemResponse(tuple.getT1(), tuple.getT2()));
+    }
+
+    private Mono<List<ItemDto>> fetchItemsList(PageParams p) {
+        return redisItemListStorage.getItems(p.search, p.size, p.num, p.sort)
+                .switchIfEmpty(Mono.defer(() -> findItemsInDb(p)));
+    }
+
+    private Mono<List<ItemDto>> findItemsInDb(PageParams p) {
+        Pageable pageable = PageRequest.of(p.num - 1, p.size, p.sort);
+        return (p.search.isBlank()
+                ? repository.findAllBy(pageable)
+                : repository.findByTitleContainingOrDescriptionContaining(p.search, p.search, pageable))
+                .collectList()
+                .map(mapper::toDto)
+                .flatMap(items -> redisItemListStorage.saveItems(p.search, p.size, p.num, p.sort, items)
+                        .thenReturn(items));
+    }
+
+    private Mono<ItemDto> fetchSingleItem(Long id) {
+        return redisItemStorage.getItem(id)
+                .switchIfEmpty(Mono.defer(() -> repository.findById(id)
+                        .switchIfEmpty(Mono.error(new IllegalStateException("Товар не найден: " + id)))
+                        .map(mapper::toDto)
+                        .flatMap(dto -> redisItemStorage.saveItem(id, dto).thenReturn(dto))));
+    }
+
+    private Mono<Long> fetchTotalCount(PageParams p) {
+        return p.search.isBlank()
+                ? repository.count()
+                : repository.countByTitleContainingOrDescriptionContaining(p.search, p.search);
+    }
+
+    private Mono<ItemsDtoResponse> assembleItemsResponse(List<ItemDto> items, Long total, PageParams p, boolean isAuth) {
+        Paging paging = getPaging(p.size, p.num, total);
+        List<List<ItemDto>> rows = splitByRows(items, 3);
+
+        if (!isAuth) {
+            return Mono.just(buildAnonymousItemsResponse(rows, paging, items));
+        }
+
+        return cartService.getItemsInTheCart()
+                .flatMap(cart -> loadCountsForItems(items, cart.id())
+                        .map(counts -> ItemsDtoResponse.builder()
+                                .itemsRows(rows)
+                                .paging(paging)
+                                .cart(cart)
+                                .itemCounts(counts)
+                                .isAuth(true)
+                                .build()))
+                .onErrorResume(e -> {
+                    log.error("Ошибка получения корзины: ", e);
+                    return Mono.just(buildAnonymousItemsResponse(rows, paging, items));
+                });
+    }
+
+    private Mono<ItemDtoResponse> assembleSingleItemResponse(ItemDto item, boolean isAuth) {
+        if (!isAuth) {
+            return Mono.just(ItemDtoResponse.builder().item(item).cartCount(0).isAuth(false).build());
+        }
+
+        return cartService.getItemsInTheCart()
+                .flatMap(cart -> cartItemRepository.findCountByCartIdAndItemId(cart.id(), item.id())
+                        .defaultIfEmpty(0)
+                        .map(count -> ItemDtoResponse.builder()
+                                .item(item)
+                                .cartCount(count)
+                                .isAuth(true)
+                                .build()));
+    }
+
+    private Mono<Boolean> getIsAuthMono() {
+        return ReactiveSecurityContextHolder.getContext()
+                .map(ctx -> {
+                    Authentication auth = ctx.getAuthentication();
+                    boolean isAuth = auth != null && auth.isAuthenticated() &&
+                            !(auth instanceof AnonymousAuthenticationToken);
+                    log.info("Проверка Auth: name={}, isAuthenticated={}, type={}",
+                            auth != null ? auth.getName() : "null",
+                            isAuth,
+                            auth != null ? auth.getClass().getSimpleName() : "null");
+
+                    return isAuth;
+                })
+                .defaultIfEmpty(false)
+                .doOnNext(res -> log.info("Флаг isAuth: {}", res));
     }
 
     private Mono<Map<Long, Integer>> loadCountsForItems(List<ItemDto> itemDtos, Long cartId) {
         return Flux.fromIterable(itemDtos)
-                .flatMap(itemDto ->
-                        cartItemRepository.findCountByCartIdAndItemId(cartId, itemDto.id())
-                                .defaultIfEmpty(0)
-                                .map(cnt -> Map.entry(itemDto.id(), cnt))
-                )
+                .flatMap(dto -> cartItemRepository.findCountByCartIdAndItemId(cartId, dto.id())
+                        .defaultIfEmpty(0)
+                        .map(cnt -> Map.entry(dto.id(), cnt)))
                 .collectMap(Map.Entry::getKey, Map.Entry::getValue);
     }
 
-    private Mono<ItemsDtoResponse> loadItemsFromDb(
-            String search,
-            int pageSize,
-            int pageNumber,
-            Sort sort,
-            Mono<CartDto> cartMono) {
-        Pageable pageable = PageRequest.of(pageNumber - 1, pageSize, sort);
-        Flux<Item> itemsFlux = search.isBlank()
-                ? repository.findAllBy(pageable)
-                : repository.findByTitleContainingOrDescriptionContaining(search, search, pageable);
-        Mono<Long> totalMono = search.isBlank()
-                ? repository.count()
-                : repository.countByTitleContainingOrDescriptionContaining(search, search);
-
-        return itemsFlux.collectList()
-                .map(mapper::toDto)
-                .zipWith(cartMono)
-                .flatMap(tuple -> loadCountsForItems(tuple.getT1(), tuple.getT2().id())
-                        .map(countMap -> Tuples.of(tuple.getT1(), tuple.getT2(), countMap))
-                )
-                .zipWith(totalMono)
-                .map(tuple -> {
-                    List<ItemDto> items = tuple.getT1().getT1();
-                    CartDto cart = tuple.getT1().getT2();
-                    Map<Long, Integer> countMap = tuple.getT1().getT3();
-                    long total = tuple.getT2();
-
-                    return buildItemsResponse(
-                            splitByRows(items, 3), cart, getPaging(pageSize, pageNumber, total), countMap);
-                });
-    }
-
-    private ItemsDtoResponse buildItemsResponse(
-            List<List<ItemDto>> rows,
-            CartDto cart,
-            Paging paging,
-            Map<Long, Integer> itemCounts
-    ) {
+    private ItemsDtoResponse buildAnonymousItemsResponse(List<List<ItemDto>> rows, Paging paging, List<ItemDto> items) {
+        Map<Long, Integer> zeroCounts = items.stream().collect(Collectors.toMap(ItemDto::id, i -> 0));
         return ItemsDtoResponse.builder()
                 .itemsRows(rows)
-                .cart(cart)
                 .paging(paging)
-                .itemCounts(itemCounts)
+                .cart(obtainCartDto())
+                .itemCounts(zeroCounts)
+                .isAuth(false)
                 .build();
     }
 
     private List<List<ItemDto>> splitByRows(List<ItemDto> items, int rowSize) {
-        int totalRows = (int) Math.ceil((double) items.size() / rowSize);
-
         List<List<ItemDto>> result = new ArrayList<>();
-        for (int i = 0; i < totalRows; i++) {
-            int from = i * rowSize;
-            int to = Math.min(items.size(), (i + 1) * rowSize);
-            List<ItemDto> sub = new ArrayList<>(items.subList(from, to));
-
-            while (sub.size() < rowSize) {
-                sub.add(obtainEmptyItemDto());
-            }
-            result.add(sub);
+        for (int i = 0; i < items.size(); i += rowSize) {
+            List<ItemDto> row = new ArrayList<>(items.subList(i, Math.min(items.size(), i + rowSize)));
+            while (row.size() < rowSize) row.add(obtainEmptyItemDto());
+            result.add(row);
         }
         return result;
     }
 
-    private Mono<ItemDtoResponse> buildItemResponse(ItemDto item, CartDto cart, Long itemId) {
-        return cartItemRepository.findCountByCartIdAndItemId(cart.id(), itemId)
-                .defaultIfEmpty(0)
-                .map(cnt -> ItemDtoResponse.builder()
-                        .item(item)
-                        .cartCount(cnt)
-                        .build());
-    }
-
-    private Paging getPaging(int pageSize, int pageNumber, long total) {
+    private Paging getPaging(int size, int num, long total) {
         return Paging.builder()
-                .total((int) total)
-                .pageSize(pageSize)
-                .pageNumber(pageNumber)
-                .hasPrevious(pageNumber > 1)
-                .hasNext((long) pageNumber * pageSize < total)
+                .total((int) total).pageSize(size).pageNumber(num)
+                .hasPrevious(num > 1).hasNext((long) num * size < total)
                 .build();
     }
+
+    private CartDto obtainCartDto() { return new CartDto(
+            -1L, List.of(), BigDecimal.ZERO); }
+
+    private ItemDto obtainEmptyItemDto() { return new ItemDto(
+            -1L, "", "", "", null, 0); }
 
     private Sort getSort(GetItemsRequestDto request) {
         if (request.getSort() == null) return Sort.unsorted();
@@ -215,17 +220,16 @@ public class ItemServiceImpl implements ItemService {
         };
     }
 
-    private ItemDto obtainEmptyItemDto() {
-        return new ItemDto(-1L, "", "", "", null, 0);
-    }
+    private class PageParams {
+        final int size, num;
+        final String search;
+        final Sort sort;
 
-    private CartDto obtainCartDto() {
-        return new CartDto(-1L, List.of(), BigDecimal.ZERO);
-    }
-
-    private List<ItemDto> flattenItems(List<List<ItemDto>> rows) {
-        List<ItemDto> flat = new ArrayList<>();
-        rows.forEach(flat::addAll);
-        return flat;
+        PageParams(GetItemsRequestDto r) {
+            this.size = Optional.ofNullable(r.getPageSize()).orElse(5);
+            this.num = Optional.ofNullable(r.getPageNumber()).orElse(1);
+            this.search = Optional.ofNullable(r.getSearch()).orElse("").trim();
+            this.sort = getSort(r);
+        }
     }
 }

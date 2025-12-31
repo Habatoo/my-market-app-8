@@ -10,6 +10,7 @@ import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
@@ -21,6 +22,7 @@ import java.math.BigDecimal;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
 
 /**
  * Unit-тесты для PaymentsController.
@@ -43,8 +45,9 @@ public class PaymentsControllerCashedTest {
     private ServerWebExchange exchange;
 
     @Test
+    @WithMockUser
     @DisplayName("POST /payments/payment - SUCCESS")
-    void createPaymentSuccess() {
+    void createPaymentSuccessTest() {
         PaymentRequest request = new PaymentRequest();
         request.setAmount(BigDecimal.valueOf(100));
 
@@ -53,7 +56,9 @@ public class PaymentsControllerCashedTest {
 
         when(paymentsService.pay(any(Mono.class))).thenReturn(Mono.just(response));
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(csrf())
+                .post()
                 .uri("/payments/payment")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
@@ -66,8 +71,9 @@ public class PaymentsControllerCashedTest {
     }
 
     @Test
+    @WithMockUser
     @DisplayName("POST /payments/payment - FAILED")
-    void createPaymentFailed() {
+    void createPaymentFailedTest() {
         PaymentRequest request = new PaymentRequest();
         request.setAmount(BigDecimal.valueOf(500));
 
@@ -76,7 +82,9 @@ public class PaymentsControllerCashedTest {
 
         when(paymentsService.pay(any(Mono.class))).thenReturn(Mono.just(response));
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(csrf())
+                .post()
                 .uri("/payments/payment")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
@@ -89,8 +97,9 @@ public class PaymentsControllerCashedTest {
     }
 
     @Test
+    @WithMockUser
     @DisplayName("GET /payments/balance - SUCCESS")
-    void getWalletBalance() {
+    void getWalletBalanceTest() {
         BalanceResponse balanceResponse = new BalanceResponse();
         balanceResponse.setBalance(BigDecimal.valueOf(1000));
 
@@ -102,5 +111,27 @@ public class PaymentsControllerCashedTest {
                 .expectStatus().isCreated()
                 .expectBody(BalanceResponse.class)
                 .value(resp -> assertEquals(0, resp.getBalance().compareTo(BigDecimal.valueOf(1000))));
+    }
+
+    @Test
+    @DisplayName("POST /payments/payment — неавторизованный пользователь получает 401 или редирект на логин")
+    void createPaymentUnauthorizedTest() {
+        webTestClient
+                .mutateWith(csrf())
+                .post()
+                .uri("/payments/payment")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    @DisplayName("GET /payments/balance — неавторизованный пользователь получает 401 или редирект на логин")
+    void getWalletBalanceUnauthorizedTest() {
+        webTestClient
+                .mutateWith(csrf())
+                .post()
+                .uri("/payments/balance")
+                .exchange()
+                .expectStatus().isUnauthorized();
     }
 }

@@ -3,7 +3,6 @@ package io.github.habatoo.repositories;
 import io.github.habatoo.utils.BaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.autoconfigure.data.r2dbc.DataR2dbcTest;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
@@ -11,7 +10,6 @@ import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@DataR2dbcTest
 @DisplayName("Reactive интеграционные тесты CartRepository")
 class CartRepositoryIntegrationTest extends BaseTest {
 

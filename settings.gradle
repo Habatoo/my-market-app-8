@@ -2,7 +2,6 @@ rootProject.name = 'my-market-app-8'
 
 include 'bom'
 include 'report'
-include 'integration-tests'
 
 include 'store:api'
 include 'store:core'

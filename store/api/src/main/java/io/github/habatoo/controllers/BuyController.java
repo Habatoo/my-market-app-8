@@ -4,6 +4,7 @@ import io.github.habatoo.servicies.BuyService;
 import io.github.habatoo.servicies.CartService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,6 +32,7 @@ public class BuyController {
      * @return redirect на страницу заказов с флагом нового заказа (если создан)
      */
     @PostMapping
+    @PreAuthorize("isAuthenticated()")
     public Mono<String> buy() {
         return cartService.getItemsInTheCart()
                 .flatMap(cart ->

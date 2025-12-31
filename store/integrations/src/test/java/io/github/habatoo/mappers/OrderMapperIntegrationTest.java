@@ -3,10 +3,10 @@ package io.github.habatoo.mappers;
 import io.github.habatoo.dto.response.OrderDto;
 import io.github.habatoo.entity.Order;
 import io.github.habatoo.entity.OrderItem;
+import io.github.habatoo.utils.BaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -14,8 +14,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
-class OrderMapperIntegrationTest {
+@DisplayName("Интеграционный тест OrderMapper — маппер")
+class OrderMapperIntegrationTest extends BaseTest {
+
     @Autowired
     private OrderMapper orderMapper;
 

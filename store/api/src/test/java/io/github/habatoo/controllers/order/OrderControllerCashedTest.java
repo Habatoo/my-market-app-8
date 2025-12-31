@@ -11,6 +11,7 @@ import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
@@ -48,6 +49,7 @@ class OrderControllerCashedTest {
      * Проверяет, что в модель попадёт список заказов и будет возвращён правильный view.
      */
     @Test
+    @WithMockUser
     @DisplayName("GET /orders — список заказов")
     void getOrderListTest() {
         OrderDto order1 = mock(OrderDto.class);
@@ -71,6 +73,7 @@ class OrderControllerCashedTest {
      * Проверяет, что в модель попадает нужный заказ и флаг newOrder.
      */
     @Test
+    @WithMockUser
     @DisplayName("GET /orders/{id} — заказ найден")
     void getOrderTest() {
         Long id = 77L;
@@ -94,6 +97,7 @@ class OrderControllerCashedTest {
     }
 
     @Test
+    @WithMockUser
     @DisplayName("GET /orders/{id} — заказ не найден → глобальный обработчик 404")
     void getOrderNotFound() {
         Long id = 999L;
@@ -110,5 +114,14 @@ class OrderControllerCashedTest {
                 });
 
         verify(orderService).getOrder(eq(id), eq(false));
+    }
+
+    @Test
+    @DisplayName("GET /orders — анонимный пользователь")
+    void getOrdersUnauthorized() {
+        webTestClient.get()
+                .uri("/orders")
+                .exchange()
+                .expectStatus().isUnauthorized();
     }
 }

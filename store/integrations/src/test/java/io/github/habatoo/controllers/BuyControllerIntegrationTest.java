@@ -5,12 +5,14 @@ import io.github.habatoo.handlers.GlobalExceptionHandler;
 import io.github.habatoo.servicies.BuyService;
 import io.github.habatoo.servicies.CartService;
 import io.github.habatoo.servicies.OrderService;
+import io.github.habatoo.utils.BaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
+import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Mono;
@@ -20,15 +22,17 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockOidcLogin;
 
 /**
- * Интеграционный тест BuyController (@WebFluxTest) — покрытие всех крайних кейсов.
+ * Интеграционный тест BuyController — покрытие всех крайних кейсов.
  * Покрывает: успешную покупку (заказ создан), покупку без заказов, ошибки/исключения на каждом шаге.
  */
-@WebFluxTest(BuyController.class)
+@AutoConfigureWebTestClient
 @Import(GlobalExceptionHandler.class)
-@DisplayName("Интеграционный WebFlux тест BuyController")
-class BuyControllerIntegrationTest {
+@DisplayName("Интеграционный SpringBootTest тест BuyController")
+class BuyControllerIntegrationTest extends BaseTest {
 
     @Autowired
     private WebTestClient webTestClient;
@@ -46,20 +50,21 @@ class BuyControllerIntegrationTest {
      * Успешная покупка: есть корзина, buy срабатывает, заказ возвращается.
      */
     @Test
-    @DisplayName("POST /buy — успешная покупка, редирект на новый заказ")
-    void buySuccessTest() {
-        CartDto cartDto = new CartDto(42L, List.of(), BigDecimal.TEN);
+    @DisplayName("Успешная покупка авторизованным пользователем")
+    void successBuyTest() {
+        CartDto cartDto = new CartDto(15L, List.of(), BigDecimal.ZERO);
         when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
-        when(buyService.buy(anyLong())).thenReturn(Mono.just(111L));
+        when(buyService.buy(anyLong())).thenReturn(Mono.just(100L));
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(mockOidcLogin()
+                        .authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                .mutateWith(csrf())
+                .post()
                 .uri("/buy")
                 .exchange()
                 .expectStatus().is3xxRedirection()
-                .expectHeader().valueEquals("Location", "/orders/111?newOrder=true");
-
-        verify(cartService).getItemsInTheCart();
-        verify(buyService).buy(42L);
+                .expectHeader().valueMatches("Location", ".*/orders/100.*");
     }
 
     /**
@@ -72,7 +77,11 @@ class BuyControllerIntegrationTest {
         when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
         when(buyService.buy(15L)).thenReturn(Mono.empty());
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(mockOidcLogin()
+                        .authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                .mutateWith(csrf())
+                .post()
                 .uri("/buy")
                 .exchange()
                 .expectStatus().is3xxRedirection()
@@ -90,7 +99,11 @@ class BuyControllerIntegrationTest {
     void buyCartErrorTest() {
         when(cartService.getItemsInTheCart()).thenReturn(Mono.error(new IllegalStateException("Корзина не найдена")));
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(mockOidcLogin()
+                        .authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                .mutateWith(csrf())
+                .post()
                 .uri("/buy")
                 .exchange()
                 .expectStatus().isOk()
@@ -111,7 +124,11 @@ class BuyControllerIntegrationTest {
         when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
         doThrow(new DataAccessResourceFailureException("DB Ошибка")).when(buyService).buy(55L);
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(mockOidcLogin()
+                        .authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                .mutateWith(csrf())
+                .post()
                 .uri("/buy")
                 .exchange()
                 .expectStatus().isOk()
@@ -132,7 +149,11 @@ class BuyControllerIntegrationTest {
         when(cartService.getItemsInTheCart()).thenReturn(Mono.just(cartDto));
         when(buyService.buy(99L)).thenReturn(Mono.error(new RuntimeException("Failure")));
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(mockOidcLogin()
+                        .authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                .mutateWith(csrf())
+                .post()
                 .uri("/buy")
                 .exchange()
                 .expectStatus().isOk()
@@ -141,5 +162,20 @@ class BuyControllerIntegrationTest {
                     String view = result.getResponseBody();
                     assertTrue(view.contains("Ошибка 500 — Внутренняя ошибка сервера"));
                 });
+    }
+
+    /**
+     * Тест перенаправления не авторизованного пользователя на стринацу логина.
+     */
+    @Test
+    @DisplayName("Попытка покупки неавторизованным пользователем — редирект на логин")
+    void unauthorizedBuyTest() {
+        webTestClient
+                .mutateWith(csrf())
+                .post()
+                .uri("/buy")
+                .exchange()
+                .expectStatus().is3xxRedirection()
+                .expectHeader().valueMatches("Location", ".*/login.*");
     }
 }

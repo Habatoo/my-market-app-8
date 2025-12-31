@@ -1,0 +1,12 @@
+databaseChangeLog:
+  - changeSet:
+      id: init-structure
+      author: habatoo
+      context: dev,test
+      dbms: postgresql
+      changes:
+        - sqlFile:
+            path: db/changelog/scripts/005_add_users.sql
+      rollback:
+        - sqlFile:
+            path: db/changelog/scripts/006_rollback_users.sql

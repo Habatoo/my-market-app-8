@@ -15,6 +15,7 @@ import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
@@ -24,6 +25,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
 
 /**
  * Unit-тесты для ItemController.
@@ -54,6 +56,7 @@ class ItemControllerCashedTest {
      * Проверяет возврат шаблона и атрибутов модели (товары, корзина, поисковые параметры).
      */
     @Test
+    @WithMockUser
     @DisplayName("GET \"/items\" — отображение витрины с параметрами поиска и пагинации")
     void getItemsTest() {
         ItemsDtoResponse itemsDtoResponse = ItemsDtoResponse.builder()
@@ -87,11 +90,14 @@ class ItemControllerCashedTest {
      * Проверяется вызов сервиса и корректный редирект с сохранением фильтров.
      */
     @Test
+    @WithMockUser
     @DisplayName("POST \"/items\" — изменение количества товара и редирект с фильтрами")
     void changeNumberOfItemsTest() {
         when(cartService.changeNumberOfItems(any())).thenReturn(Mono.just(mock(ItemDto.class)));
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(csrf())
+                .post()
                 .uri(uriBuilder -> uriBuilder
                         .path("/items")
                         .queryParam("id", "15")
@@ -115,6 +121,7 @@ class ItemControllerCashedTest {
      * Проверяет правильную передачу модели и ожидание нужного view.
      */
     @Test
+    @WithMockUser
     @DisplayName("GET \"/items/{id}\" — отображение карточки позиции товара")
     void getItemPageTest() {
         ItemDtoResponse itemDtoResponse = ItemDtoResponse.builder()
@@ -141,12 +148,15 @@ class ItemControllerCashedTest {
      * Проверяет передачу модели и вызов соответствующего метода сервиса.
      */
     @Test
+    @WithMockUser
     @DisplayName("POST \"/items/{id}\" — изменение количества товара на странице и возвращение позиции")
     void changeItemFromItemPageTest() {
         ItemDtoResponse itemDtoResponse = mock(ItemDtoResponse.class);
         when(itemService.changeNumberOfItemsFromPage(any())).thenReturn(Mono.just(itemDtoResponse));
 
-        webTestClient.post()
+        webTestClient
+                .mutateWith(csrf())
+                .post()
                 .uri("/items/33")
                 .exchange()
                 .expectStatus().isOk()
@@ -164,6 +174,7 @@ class ItemControllerCashedTest {
      * Проверяет передачу модели и вызов GlobalExceptionHandler.
      */
     @Test
+    @WithMockUser
     @DisplayName("GET /items/{id} — товар не найден → GlobalExceptionHandler 404")
     void getItemNotFoundTest() {
         when(itemService.getItem(anyLong())).thenReturn(Mono.empty());
@@ -179,5 +190,53 @@ class ItemControllerCashedTest {
                 });
 
         verify(itemService).getItem(999L);
+    }
+
+    /**
+     * Тест: анонимный пользователь НЕ может менять количество товара (POST).
+     * Ожидаем 401 Unauthorized или 302 Redirect на логин.
+     */
+    @Test
+    @DisplayName("POST /items — анонимный доступ запрещен")
+    void changeNumberOfItemsUnauthorizedTest() {
+        webTestClient
+                .mutateWith(csrf())
+                .post()
+                .uri("/items?id=15&action=PLUS")
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        verifyNoInteractions(cartService);
+    }
+
+    /**
+     * Тест: анонимный пользователь НЕ может менять количество со страницы товара (POST).
+     */
+    @Test
+    @DisplayName("POST /items/{id} — анонимный доступ запрещен")
+    void changeItemFromItemPageUnauthorizedTest() {
+        webTestClient
+                .mutateWith(csrf())
+                .post()
+                .uri("/items/33")
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        verifyNoInteractions(itemService);
+    }
+
+    /**
+     * Тест: проверка защиты от CSRF.
+     * Даже если пользователь авторизован, POST запрос без CSRF токена должен быть отклонен (403),
+     * если только CSRF не отключен для этого пути.
+     */
+    @Test
+    @WithMockUser
+    @DisplayName("POST /items — ошибка 403 при отсутствии CSRF (если CSRF включен)")
+    void changeNumberOfItemsNoCsrfTest() {
+        webTestClient.post()
+                .uri("/items?id=15&action=PLUS")
+                .exchange()
+                .expectStatus().isForbidden();
     }
 }

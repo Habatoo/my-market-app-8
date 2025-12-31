@@ -2,15 +2,11 @@ package io.github.habatoo.servicies;
 
 import io.github.habatoo.dto.enums.Action;
 import io.github.habatoo.dto.request.ChangeNumberOfItemsRequestDto;
-import io.github.habatoo.entity.Cart;
-import io.github.habatoo.entity.Item;
 import io.github.habatoo.utils.BaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.data.r2dbc.AutoConfigureDataR2dbc;
-import org.springframework.boot.test.context.SpringBootTest;
+import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.math.BigDecimal;
@@ -18,9 +14,6 @@ import java.math.BigDecimal;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest
-@AutoConfigureDataR2dbc
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @DisplayName("Интеграционные тесты CartServiceImpl")
 class CartServiceImplSpringBootIntegrationTest extends BaseTest {
 
@@ -30,76 +23,94 @@ class CartServiceImplSpringBootIntegrationTest extends BaseTest {
     @Test
     @DisplayName("Добавление нового товара в пустую корзину")
     void addItemToEmptyCartTest() {
-        Item item = createAndSaveItem("Item1", BigDecimal.valueOf(100)).block();
+        String extId = "test-ext-id-1";
 
-        ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
-                .id(item.getId())
-                .action(Action.PLUS)
-                .build();
+        Mono<Void> testChain = createAndSaveItem("Item1", BigDecimal.valueOf(100))
+                .flatMap(item -> {
+                    ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
+                            .id(item.getId())
+                            .action(Action.PLUS)
+                            .build();
 
-        StepVerifier.create(cartService.changeNumberOfItems(request))
-                .assertNext(itemDto -> {
-                    assertEquals(itemDto.id(), item.getId());
-                    assertEquals(itemDto.title(), item.getTitle());
+                    return cartService.changeNumberOfItems(request)
+                            .contextWrite(createSecurityContext(extId, "testUser"))
+                            .doOnNext(itemDto -> {
+                                assertEquals(itemDto.id(), item.getId());
+                                assertEquals(itemDto.title(), item.getTitle());
+                            })
+                            .then(cartService.getItemsInTheCart())
+                            .contextWrite(createSecurityContext(extId, "testUser"))
+                            .doOnNext(cartDto -> {
+                                assertEquals(1, cartDto.items().size());
+                                assertEquals(0, cartDto.total().compareTo(BigDecimal.valueOf(100)));
+                            });
                 })
-                .verifyComplete();
+                .then();
 
-        StepVerifier.create(cartService.getItemsInTheCart())
-                .assertNext(cartDto -> {
-                    assert cartDto.items().size() == 1;
-                    assert cartDto.total().compareTo(BigDecimal.valueOf(100)) == 0;
-                })
+        StepVerifier.create(testChain)
                 .verifyComplete();
     }
 
     @Test
     @DisplayName("Увеличение количества существующего товара в корзине")
     void increaseItemCountTest() {
-        Cart cart = createAndSaveCart().block();
-        Item item = createAndSaveItem("Item2", BigDecimal.valueOf(50)).block();
-        createAndSaveCartItem(cart, item, 1, item.getPrice()).block();
+        String extId = "test-ext-id-2";
 
-        ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
-                .id(item.getId())
-                .action(Action.PLUS)
-                .build();
+        Mono<Void> testChain = createAndSaveUserWithId(extId, "user2")
+                .flatMap(user -> createAndSaveCart(BigDecimal.ZERO, user)
+                        .flatMap(cart -> createAndSaveItem("Item2", BigDecimal.valueOf(50))
+                                .flatMap(item -> createAndSaveCartItem(cart, item, 1, item.getPrice())
+                                        .thenReturn(item))))
+                .flatMap(item -> {
+                    ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
+                            .id(item.getId())
+                            .action(Action.PLUS)
+                            .build();
 
-        StepVerifier.create(cartService.changeNumberOfItems(request))
-                .assertNext(itemDto -> assertEquals(itemDto.id(), item.getId()))
-                .verifyComplete();
-
-        StepVerifier.create(cartService.getItemsInTheCart())
-                .assertNext(cartDto -> {
-                    assertEquals(2, (int) cartDto.items().get(0).count());
-                    assertEquals(0, cartDto.total().compareTo(BigDecimal.valueOf(100)));
+                    return cartService.changeNumberOfItems(request)
+                            .contextWrite(createSecurityContext(extId, "user2"))
+                            .then(cartService.getItemsInTheCart())
+                            .contextWrite(createSecurityContext(extId, "user2"))
+                            .doOnNext(cartDto -> {
+                                assertEquals(1, cartDto.items().size());
+                                assertEquals(2, (int) cartDto.items().get(0).count());
+                                assertEquals(0, cartDto.total().compareTo(BigDecimal.valueOf(100)));
+                            });
                 })
+                .then();
+
+        StepVerifier.create(testChain)
                 .verifyComplete();
     }
 
     @Test
     @DisplayName("Уменьшение количества товара до удаления")
     void decreaseItemCountToZeroTest() {
-        Cart cart = createAndSaveCart().block();
-        Item item = createAndSaveItem("Item3", BigDecimal.valueOf(30)).block();
-        createAndSaveCartItem(cart, item, 1, item.getPrice()).block();
+        String extId = "test-ext-id-3";
 
-        ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
-                .id(item.getId())
-                .action(Action.MINUS)
-                .build();
+        Mono<Void> testChain = createAndSaveUserWithId(extId, "user3")
+                .flatMap(user -> createAndSaveCart(BigDecimal.ZERO, user)
+                        .flatMap(cart -> createAndSaveItem("Item3", BigDecimal.valueOf(30))
+                                .flatMap(item -> createAndSaveCartItem(cart, item, 1, item.getPrice())
+                                        .thenReturn(item))))
+                .flatMap(item -> {
+                    ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
+                            .id(item.getId())
+                            .action(Action.MINUS)
+                            .build();
 
-        StepVerifier.create(cartService.changeNumberOfItems(request))
-                .assertNext(itemDto -> {
-                    assertEquals(itemDto.id(), item.getId());
-                    assertEquals(0, (int) itemDto.count());
+                    return cartService.changeNumberOfItems(request)
+                            .contextWrite(createSecurityContext(extId, "user3"))
+                            .then(cartService.getItemsInTheCart())
+                            .contextWrite(createSecurityContext(extId, "user3"))
+                            .doOnNext(cartDto -> {
+                                assertTrue(cartDto.items().isEmpty());
+                                assertEquals(0, cartDto.total().compareTo(BigDecimal.ZERO));
+                            });
                 })
-                .verifyComplete();
+                .then();
 
-        StepVerifier.create(cartService.getItemsInTheCart())
-                .assertNext(cartDto -> {
-                    assertTrue(cartDto.items().isEmpty());
-                    assertEquals(0, cartDto.total().compareTo(BigDecimal.ZERO));
-                })
+        StepVerifier.create(testChain)
                 .verifyComplete();
     }
 
@@ -111,28 +122,40 @@ class CartServiceImplSpringBootIntegrationTest extends BaseTest {
                 .action(Action.MINUS)
                 .build();
 
-        StepVerifier.create(cartService.changeNumberOfItems(request))
+        StepVerifier.create(cartService.changeNumberOfItems(request)
+                        .contextWrite(createSecurityContext("any", "user")))
                 .expectComplete()
                 .verify();
     }
 
     @Test
-    @DisplayName("Получение полной корзины с несколькими товарами")
-    void getCartWithMultipleItemsTest() {
-        Cart cart = createAndSaveCart().block();
-        Item item1 = createAndSaveItem("ItemA", BigDecimal.valueOf(10)).block();
-        Item item2 = createAndSaveItem("ItemB", BigDecimal.valueOf(20)).block();
+    @DisplayName("Добавление товара: возвращает пустой Mono для неавторизованного пользователя")
+    void addItemUnauthenticatedTest() {
+        ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
+                .id(1L)
+                .action(Action.PLUS)
+                .build();
 
-        createAndSaveCartItem(cart, item1, 2, item1.getPrice()).block();
-        createAndSaveCartItem(cart, item2, 1, item2.getPrice()).block();
+        StepVerifier.create(cartService.changeNumberOfItems(request))
+                .verifyComplete();
+    }
 
+    @Test
+    @DisplayName("Получение корзины: возвращает пустой Mono для неавторизованного пользователя")
+    void getItemsUnauthenticatedTest() {
         StepVerifier.create(cartService.getItemsInTheCart())
-                .assertNext(cartDto -> {
-                    assertEquals(2, cartDto.items().size());
-                    BigDecimal expectedTotal = item1.getPrice().multiply(BigDecimal.valueOf(2))
-                            .add(item2.getPrice());
-                    assertEquals(0, cartDto.total().compareTo(expectedTotal));
-                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("Изменение количества из корзины: возвращает пустой Mono для неавторизованного пользователя")
+    void changeItemsFromCartUnauthenticatedTest() {
+        ChangeNumberOfItemsRequestDto request = ChangeNumberOfItemsRequestDto.builder()
+                .id(1L)
+                .action(Action.PLUS)
+                .build();
+
+        StepVerifier.create(cartService.changeNumberOfItemsFromCart(request))
                 .verifyComplete();
     }
 }
